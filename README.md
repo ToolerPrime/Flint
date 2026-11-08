@@ -49,6 +49,7 @@ Flint uses Fireworks 8's default shortcuts ("Macromedia Standard").
 | Marquee / oval marquee | M (press again to switch) |
 | Lasso, magic wand, crop | L, W, C |
 | Brush, pencil, eraser, rubber stamp | B, Y, E, S |
+| Brush or pencil size smaller / bigger | [ / ] |
 | Line, rectangle / oval, text | N, U (press again for oval), T |
 | Paint bucket / gradient | G (press again to switch) |
 | Eyedropper, hand | I, H |

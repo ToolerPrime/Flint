@@ -171,6 +171,25 @@ public static class BrushTest
             form.TestSizeSlider.Value = 120;
             Check(form.TestSizeNumber == 120 && form.TestBrush.Size == 120, "moving the size slider sets the number and the brush");
             Check(Math.Abs(form.TestSizeSlider.Fraction(31.6m) - 0.5) < 0.01, "the size slider is logarithmic: the middle is about 32 px");
+
+            // Bracket keys for brush size (Photoshop-style).
+            form.TestToolKey(Keys.B); form.TestSetBrush(BrushSettings.Presets[0] with { Size = 20 });
+            form.TestProductivityShortcut(Keys.OemCloseBrackets, true);
+            Check(form.TestBrush.Size == 22f, "] increases brush size (round up: 20*1.1=22)");
+            form.TestProductivityShortcut(Keys.OemOpenBrackets, true);
+            form.TestProductivityShortcut(Keys.OemOpenBrackets, true);
+            Check(form.TestBrush.Size < 22f, "[ twice decreases brush size (round down: 22/1.1=20, 20/1.1=18)");
+
+            form.TestSetBrush(BrushSettings.Presets[0] with { Size = 1 });
+            form.TestProductivityShortcut(Keys.OemOpenBrackets, true);
+            Check(form.TestBrush.Size == 1f, "[ at the smallest size stays at 1");
+
+            // Pencil bracket key.
+            form.TestToolKey(Keys.Y);
+            decimal pencilBefore = form.TestPencilSize;
+            form.TestProductivityShortcut(Keys.OemCloseBrackets, true);
+            Check(form.TestPencilSize > pencilBefore, "pencil size increases by 1 when using ]");
+
             form.TestSetBrush(BrushSettings.Presets[2]);
             Check(form.TestSizeSlider.Value == 5, "choosing a preset moves the sliders too");
             if (Environment.GetEnvironmentVariable("FLINT_BRUSH_UI_SHOT") is { Length: > 0 } shot)

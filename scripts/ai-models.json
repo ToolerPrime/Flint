@@ -13,7 +13,10 @@
         "Write",
         "Bash(dotnet build:*)",
         "Bash(git status:*)",
-        "Bash(git diff:*)"
+        "Bash(git diff:*)",
+        "Bash(desktop\\bin\\Debug\\net8.0-windows\\Flint.exe:*)",
+        "Bash(desktop/bin/Debug/net8.0-windows/Flint.exe:*)",
+        "Bash(./desktop/bin/Debug/net8.0-windows/Flint.exe:*)"
       ],
       "tools": [
         "Read",
@@ -36,7 +39,10 @@
         "Bash(dotnet test:*)",
         "Bash(git status:*)",
         "Bash(git diff:*)",
-        "Bash(git log:*)"
+        "Bash(git log:*)",
+        "Bash(desktop\\bin\\Debug\\net8.0-windows\\Flint.exe:*)",
+        "Bash(desktop/bin/Debug/net8.0-windows/Flint.exe:*)",
+        "Bash(./desktop/bin/Debug/net8.0-windows/Flint.exe:*)"
       ],
       "tools": [
         "Read",

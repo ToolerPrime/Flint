@@ -12,6 +12,7 @@ Ollama) doing routine work. Two ways to start:
 Check what will be used: `powershell -ExecutionPolicy Bypass -File scripts\Get-FlintAIStatus.ps1`
 
 How delegation works and the rules: [AI_WORKFLOW.md](AI_WORKFLOW.md).
+Out of Claude usage? Read [WORKING-WITHOUT-CLAUDE.md](WORKING-WITHOUT-CLAUDE.md).
 Project rules: [../CLAUDE.md](../CLAUDE.md). Design: [../ARCHITECTURE.md](../ARCHITECTURE.md).
 Status: [../FEATURE_PARITY.md](../FEATURE_PARITY.md), [../KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md).
 

@@ -56,6 +56,12 @@ $roleCfg = $cfg.roles.$Role
 if (-not $Model) { $Model = $roleCfg.model }
 if ($TimeoutSec -le 0) { $TimeoutSec = [int]$roleCfg.timeoutSec }
 $allowed = @($roleCfg.allowedTools)
+# Models often call the test program by its full path; allow that too for roles that may run tests.
+# Built here, from this checkout's folder, so no machine-specific path is stored in git.
+if ($allowed -match 'Flint\.exe') {
+    $exe = Join-Path $WorkDir 'desktop\bin\Debug\net8.0-windows\Flint.exe'
+    $allowed += @("Bash(${exe}:*)", "Bash($($exe -replace '\\', '/')`:*)")
+}
 
 # --- preflight ------------------------------------------------------------------
 $claude = Find-Claude
@@ -87,6 +93,7 @@ $acceptText
 
 Rules: stay inside this folder; do not start other agents; do not commit, push or publish.
 If a tool or command is refused ("requires approval"), do NOT retry it or variations of it: you are not allowed to run it. Note it under PROBLEMS and finish.
+Run commands one at a time (never join them with && or ;). Flint's tests: build first, then run desktop\bin\Debug\net8.0-windows\Flint.exe --<suite>test with that relative path (e.g. --brushtest, --toolstest, --productivitytest); a suite passes when its last line says "all ... checks passed".
 When finished, reply with exactly these sections:
 SUMMARY: one to three sentences.
 FILES CHANGED: list, or "none".

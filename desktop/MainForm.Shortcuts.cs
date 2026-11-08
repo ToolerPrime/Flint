@@ -60,6 +60,26 @@ public sealed partial class MainForm
         Key(Keys.Control | Keys.Alt | Keys.P, TogglePlay);
 
         Key(Keys.Control | Keys.Alt | Keys.Shift | Keys.I, () => RunFilterDialog(Adjust.All.First(f => f.Name == "Invert")));
+
+        // Bracket keys: step brush size (Photoshop-style).
+        Key(Keys.OemOpenBrackets, () => StepBrushSize(-1));  // [ : smaller
+        Key(Keys.OemCloseBrackets, () => StepBrushSize(1));  // ] : bigger
+    }
+
+    /// <summary>Step the current tool's size by one increment (Photoshop bracket keys).</summary>
+    private void StepBrushSize(int direction)
+    {
+        if (_tool == Tool.Brush)
+        {
+            decimal old = _brushSize.Value;
+            decimal v = direction > 0 ? Math.Max(old + 1, Math.Ceiling(old * 1.1m)) : Math.Min(old - 1, Math.Floor(old / 1.1m));   // always at least 1 step
+            _brushSize.Value = Math.Clamp(v, _brushSize.Minimum, _brushSize.Maximum);
+        }
+        else
+        {
+            decimal v = direction > 0 ? _brush.Value + 1 : _brush.Value - 1;
+            _brush.Value = Math.Clamp(v, _brush.Minimum, _brush.Maximum);
+        }
     }
 
     /// <summary>Fireworks tool letters. Pressing a letter again cycles through its tool group.</summary>
@@ -139,4 +159,5 @@ public sealed partial class MainForm
     internal Tool TestTool => _tool;
     internal int TestZoomLevel => _zoom;
     internal (Color fg, Color bg) TestColours => (_fg, _bg);
+    internal decimal TestPencilSize => _brush.Value;
 }

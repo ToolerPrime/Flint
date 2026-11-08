@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — bracket keys, local helpers can run tests
+
+- [ and ] make the brush smaller or bigger (about 10% a step for the Brush, 1 pixel for the pencil and shapes), as in Photoshop. Written by the local Ollama model as a test of working without Claude; reviewed and one edge case fixed.
+- Local workers (coder, debugger) may now run Flint's own test suites, so they can check their work. New guide: docs/WORKING-WITHOUT-CLAUDE.md.
+
 ## Unreleased — Fireworks-style workspace: tab groups, columns, toolbars
 
 - Panel groups, as in Fireworks: drag a panel onto another panel's title bar (or use its menu: Group ... with) to make them tabs in one box. Drag a tab out to separate it, or use New panel group. Rename panel group gives a group your own name.
