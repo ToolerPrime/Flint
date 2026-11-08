@@ -58,7 +58,7 @@ public sealed partial class MainForm
             var b = new Button { Text = text, Width = width, Height = 28, Margin = new Padding(2) };
             b.Click += (_, _) => action(); bar.Controls.Add(b);
         }
-        Button("Edit…", 62, EditObjectProperties); Button("Clone", 62, CloneSelectedObject);
+        Button("Edit…", 62, EditObjectProperties); Button("Clone", 62, () => CloneSelectedObject());
         Button("Actions ▾", 100, () => menu.Show(bar, new Point(0, bar.Height)));
         page.Controls.Add(_objects); page.Controls.Add(bar); page.Disposed += (_, _) => menu.Dispose();
         return page;
@@ -154,7 +154,8 @@ public sealed partial class MainForm
         PushStructure("edit object properties", before);
     }
 
-    private void CloneSelectedObject()
+    /// <summary>Copies the selected objects, offset by (dx, dy): Fireworks Clone is 0,0, Duplicate 10,10.</summary>
+    private void CloneSelectedObject(int dx = 10, int dy = 10)
     {
         if (!CanEditObject()) return;
         var cel = ActiveLayer.CelAt(_cur)!;
@@ -162,7 +163,7 @@ public sealed partial class MainForm
         string Remap(string id) { if (!ids.TryGetValue(id,out var mapped)) ids[id]=mapped=Guid.NewGuid().ToString("N"); return mapped; }
         var copies = SelectedObjectIndices.Select(i =>
         {
-            var old=(RasterObject)cel.Objects[i]; var next=old.Moved(10,10).WithGroups(old.GroupPath.Select(Remap)); next.Name += " copy"; return next;
+            var old=(RasterObject)cel.Objects[i]; var next=old.Moved(dx,dy).WithGroups(old.GroupPath.Select(Remap)); next.Name += " copy"; return next;
         }).ToArray();
         var before=Before();int start=cel.Objects.Count;cel.Objects.AddRange(copies);SelectObjects(Enumerable.Range(start,copies.Length));
         PushStructure("clone objects",before);

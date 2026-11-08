@@ -164,12 +164,12 @@ public sealed partial class MainForm : ThemedForm
         Add(file, "&Save", Keys.Control | Keys.S, () => SaveProject(false));
         Add(file, "Save &as…", Keys.Control | Keys.Shift | Keys.S, () => SaveProject(true));
         file.DropDownItems.Add(new ToolStripSeparator());
-        Add(file, "&Import images…", Keys.Control | Keys.I, ChooseFiles);
-        Add(file, "&Export…", Keys.Control | Keys.E, ExportAny);
-        Add(file, "Export previe&w…", Keys.Control | Keys.Shift | Keys.E, ExportPreview);
+        Add(file, "&Import images…", Keys.Control | Keys.R, ChooseFiles);
+        Add(file, "&Export…", Keys.Control | Keys.Shift | Keys.R, ExportAny);
+        Add(file, "Export previe&w…", Keys.Control | Keys.Shift | Keys.X, ExportPreview);
         file.DropDownItems.Add("Export PNG se&quence…", null, (_, _) => ExportSequence());
         file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add("E&xit", null, (_, _) => Close());
+        Add(file, "E&xit", Keys.Control | Keys.Q, Close);
 
         var edit = new ToolStripMenuItem("&Edit");
         Add(edit, "&Undo", Keys.Control | Keys.Z, Undo);
@@ -185,7 +185,7 @@ public sealed partial class MainForm : ThemedForm
         layerMenu.DropDownItems.Add("Move &up", null, (_, _) => MoveLayer(1));
         layerMenu.DropDownItems.Add("Move &down", null, (_, _) => MoveLayer(-1));
         layerMenu.DropDownItems.Add(new ToolStripSeparator());
-        layerMenu.DropDownItems.Add("&Merge down", null, (_, _) => MergeDown());
+        Add(layerMenu, "&Merge down", Keys.Control | Keys.E, MergeDown);
         layerMenu.DropDownItems.Add("&Flatten to one layer", null, (_, _) => Flatten());
 
         var frameMenu = new ToolStripMenuItem("F&rame");
@@ -1481,6 +1481,12 @@ public sealed partial class MainForm : ThemedForm
         RefreshAll();
     }
 
+    private void StepFrame(int by)
+    {
+        StopPlay(); _cur = Math.Clamp(_cur + by, 0, _doc.FrameCount - 1); _selStart = _selEnd = _cur;
+        InvalidateComposite(); RefreshAll();
+    }
+
     private void TogglePlay()
     {
         if (_play.Enabled) StopPlay();
@@ -1598,22 +1604,13 @@ public sealed partial class MainForm : ThemedForm
         switch (e.KeyCode)
         {
             case Keys.Space: TogglePlay(); e.Handled = true; break;
-            case Keys.Left: StopPlay(); _cur = Math.Max(0, _cur - 1); _selStart = _selEnd = _cur; InvalidateComposite(); RefreshAll(); e.Handled = true; break;
-            case Keys.Right: StopPlay(); _cur = Math.Min(_doc.FrameCount - 1, _cur + 1); _selStart = _selEnd = _cur; InvalidateComposite(); RefreshAll(); e.Handled = true; break;
+            case Keys.Left: StepFrame(-1); e.Handled = true; break;
+            case Keys.Right: StepFrame(1); e.Handled = true; break;
             case Keys.Escape: _selection = null; _canvas.Invalidate(); e.Handled = true; break;
-            case Keys.Delete:
+            case Keys.Delete or Keys.Back:
                 if (_tool == Tool.ObjectSelect) { if (SelectedObject != null) DeleteSelectedObject(); else Say("Pick an object first."); }
                 else if (_tool == Tool.Hitbox) ClearHitboxes(); else ClearSelection();
                 e.Handled = true; break;
-            case Keys.B: SetTool(Tool.Pencil); break;
-            case Keys.E: if (!e.Control) SetTool(Tool.Eraser); break;
-            case Keys.G: SetTool(Tool.Fill); break;
-            case Keys.L: SetTool(Tool.Line); break;
-            case Keys.R: SetTool(Tool.Rectangle); break;
-            case Keys.O: if (!e.Control) SetTool(Tool.Ellipse); break;
-            case Keys.M: SetTool(Tool.Marquee); break;
-            case Keys.I: if (!e.Control) SetTool(Tool.Eyedropper); break;
-            case Keys.H: SetTool(Tool.Pan); break;
         }
     }
 

@@ -15,16 +15,17 @@ public sealed partial class MainForm
         }
         edit.DropDownItems.Add(new ToolStripSeparator());
         Command(edit,"&Group objects",Keys.Control|Keys.G,GroupObjects);
-        Command(edit,"&Ungroup",Keys.Control|Keys.Alt|Keys.G,UngroupObjects,Keys.Control|Keys.U,Keys.Control|Keys.Shift|Keys.G);
+        Command(edit,"&Ungroup",Keys.Control|Keys.Shift|Keys.G,UngroupObjects);
         Command(edit,"&Flatten selection",Keys.Control|Keys.Alt|Keys.Shift|Keys.Z,FlattenSelectedObjects);
-        Command(transform,"&Numeric transform…",Keys.Control|Keys.Alt|Keys.T,NumericTransform);
+        Command(transform,"&Numeric transform…",Keys.Control|Keys.Shift|Keys.T,NumericTransform);
         transform.DropDownItems.Add(new ToolStripSeparator());
-        Command(transform,"Quick scale selection: &50%",Keys.Control|Keys.Alt|Keys.D5,()=>QuickScaleSelection(0.5));
-        Command(transform,"Quick scale selection: &200%",Keys.Control|Keys.Alt|Keys.D2,()=>QuickScaleSelection(2));
+        // No shortcut: Fireworks uses Ctrl+Alt+5 / Ctrl+Alt+2 for alignment.
+        transform.DropDownItems.Add("Quick scale selection: &50%",null,(_,_)=>QuickScaleSelection(0.5));
+        transform.DropDownItems.Add("Quick scale selection: &200%",null,(_,_)=>QuickScaleSelection(2));
         image.DropDownItems.Add(new ToolStripSeparator());
-        Command(image,"Fit canvas to &whole animation",Keys.Control|Keys.Shift|Keys.F,()=>FitCanvas(false));
+        Command(image,"Fit canvas to &whole animation",Keys.Control|Keys.Alt|Keys.F,()=>FitCanvas(false));
         Command(image,"Fit canvas to &current frame",Keys.Control|Keys.Alt|Keys.Shift|Keys.F,()=>FitCanvas(true));
-        Command(image,"&Trim empty canvas — all frames",Keys.Control|Keys.Shift|Keys.T,TrimCanvas);
+        Command(image,"&Trim empty canvas — all frames",Keys.Control|Keys.Alt|Keys.T,TrimCanvas);
         var clip=new ToolStripMenuItem("Cut images outside canvas");
         Command(clip,"Current &frame",Keys.Control|Keys.Alt|Keys.Shift|Keys.X,()=>ClipCanvas(true));
         Command(clip,"&Whole animation",Keys.Control|Keys.Alt|Keys.Shift|Keys.K,()=>ClipCanvas(false));image.DropDownItems.Add(clip);

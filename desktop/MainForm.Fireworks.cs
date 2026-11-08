@@ -6,7 +6,7 @@ namespace Flint;
 public sealed partial class MainForm
 {
     /// <summary>File > Open for either kind of file. A plain PNG is not opened: Import places it.</summary>
-    private void OpenAny(string path)
+    internal void OpenAny(string path)
     {
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) { LoadProject(path); return; }
         if (Importer.HasFireworksChunks(path)) { OpenFireworks(path); return; }

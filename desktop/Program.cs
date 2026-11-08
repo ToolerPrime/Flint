@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace Flint;
 
@@ -179,7 +179,10 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        var form = new MainForm();
+        // A file given on launch (double-click, "Open with", dropped on Flint.exe).
+        if (args.Length >= 1 && File.Exists(args[0])) form.Shown += (_, _) => form.OpenAny(Path.GetFullPath(args[0]));
+        Application.Run(form);
         return 0;
     }
 }

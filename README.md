@@ -38,18 +38,42 @@ powershell -ExecutionPolicy Bypass -File ./run_all.ps1
 Success ends with ALL SUITES PASSED. Focused editor checks can be run using
 the executable's --productivitytest, --editabletest and --workspacetest flags.
 
-## Editing shortcuts
+## Keyboard shortcuts
+
+Flint uses Fireworks 8's default shortcuts ("Macromedia Standard").
 
 | Action | Shortcut |
 |---|---|
-| Object selection | Q; Shift-click adds, Alt-click picks one group member |
-| Group / ungroup | Ctrl+G / Ctrl+Alt+G or Ctrl+U |
-| Flatten selected objects | Ctrl+Alt+Shift+Z |
-| Free / numeric transform | Ctrl+T / Ctrl+Alt+T |
-| Fit canvas to whole animation | Ctrl+Shift+F |
-| Trim empty canvas | Ctrl+Shift+T |
-| Image size and quality | Ctrl+Alt+I |
-| Selected objects 50% / 200% | Ctrl+Alt+5 / Ctrl+Alt+2 |
+| Pointer / Move layer | V or 0 (press again for Move) |
+| Scale (free transform) | Q, Ctrl+T |
+| Marquee / oval marquee | M (press again to switch) |
+| Lasso, magic wand, crop | L, W, C |
+| Pencil, eraser, rubber stamp | B or Y, E, S |
+| Line, rectangle / oval, text | N, U (press again for oval), T |
+| Paint bucket / gradient | G (press again to switch) |
+| Eyedropper, hand | I, H |
+| Default colours / swap colours | D / X |
+| Import / export / export preview | Ctrl+R / Ctrl+Shift+R / Ctrl+Shift+X |
+| Undo / redo | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z |
+| Clone / duplicate objects | Ctrl+Shift+D / Ctrl+Alt+D |
+| Clone and nudge | Alt+arrow (Shift: 10 pixels) |
+| Group / ungroup / flatten selection | Ctrl+G / Ctrl+Shift+G / Ctrl+Alt+Shift+Z |
+| Numeric transform | Ctrl+Shift+T |
+| Rotate 90° clockwise / anticlockwise | Ctrl+Shift+9 / Ctrl+Shift+7 |
+| Align left, centre, right, top, middle, bottom | Ctrl+Alt+1 to 6 |
+| Bring forward / send backward | Ctrl+Up / Ctrl+Down |
+| Bring to front / send to back | Ctrl+Shift+Up / Ctrl+Shift+Down |
+| Paste attributes | Ctrl+Alt+Shift+V |
+| Fit canvas / trim canvas | Ctrl+Alt+F / Ctrl+Alt+T |
+| Merge down | Ctrl+E |
+| Zoom 100/200/300/400/800/1600%, fit | Ctrl+1/2/3/4/8/6, Ctrl+0 |
+| Rulers, show / lock / snap guides | Ctrl+Alt+R, Ctrl+; / Ctrl+Alt+; / Ctrl+Shift+; |
+| Previous / next frame, play | Page Up / Page Down, Ctrl+Alt+P |
+| Image size and quality (Flint) | Ctrl+Alt+I |
+
+Not available yet, because Flint does not have these features: pen, knife,
+blur, slice and hotspot tools; text style keys; panel keys (F2 and so on);
+hide panels (Tab/F4); distribute; Paste Inside (Ctrl+Shift+V pastes frames).
 
 See [the full shortcut and behavior notes](local-team/research/productivity-integration.md).
 Fit retains off-canvas sources; explicit clipping removes them and rasterizes

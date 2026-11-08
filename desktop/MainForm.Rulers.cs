@@ -26,9 +26,9 @@ public sealed partial class MainForm
         _miRulers = new ToolStripMenuItem("&Rulers", null, (_, _) => SetRulers(!_rulers)) { ShortcutKeys = Keys.Control | Keys.Alt | Keys.R };
         view.DropDownItems.Add(_miRulers);
         var g = new ToolStripMenuItem("&Guides");
-        _miShow = new ToolStripMenuItem("&Show guides", null, (_, _) => { _guidesShown = !_guidesShown; SyncGuideMenu(); _canvas.Invalidate(); }) { Checked = true };
-        _miLock = new ToolStripMenuItem("&Lock guides", null, (_, _) => { _guidesLocked = !_guidesLocked; SyncGuideMenu(); });
-        _miSnap = new ToolStripMenuItem("S&nap to guides", null, (_, _) => { _guidesSnap = !_guidesSnap; SyncGuideMenu(); });
+        _miShow = new ToolStripMenuItem("&Show guides", null, (_, _) => { _guidesShown = !_guidesShown; SyncGuideMenu(); _canvas.Invalidate(); }) { Checked = true, ShortcutKeys = Keys.Control | Keys.OemSemicolon };
+        _miLock = new ToolStripMenuItem("&Lock guides", null, (_, _) => { _guidesLocked = !_guidesLocked; SyncGuideMenu(); }) { ShortcutKeys = Keys.Control | Keys.Alt | Keys.OemSemicolon };
+        _miSnap = new ToolStripMenuItem("S&nap to guides", null, (_, _) => { _guidesSnap = !_guidesSnap; SyncGuideMenu(); }) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.OemSemicolon };
         _miShow.Checked = true;
         g.DropDownItems.Add(_miShow);
         g.DropDownItems.Add(_miLock);

@@ -76,25 +76,25 @@ public sealed partial class MainForm
         var box = new Panel { Dock = DockStyle.Left, Width = 92, Padding = new Padding(8, 4, 6, 4), AutoScroll = true };
         var info = new Dictionary<Tool, (string icon, string label, string tip)>
         {
-            [Tool.ObjectSelect] = ("move", "Object", "Object (Q): pick and move one object; double-click to edit"),
-            [Tool.Move] = ("move", "Move", "Move (V): drag the layer, or the selected pixels"),
-            [Tool.Transform] = ("transform", "Xform", "Free transform (Ctrl+T): scale, rotate"),
+            [Tool.ObjectSelect] = ("move", "Object", "Pointer (V, 0): pick and move objects; double-click to edit"),
+            [Tool.Move] = ("move", "Move", "Move (press V twice): drag the layer, or the selected pixels"),
+            [Tool.Transform] = ("transform", "Xform", "Scale / free transform (Q, Ctrl+T): scale, rotate"),
             [Tool.Crop] = ("crop", "Crop", "Crop (C): drag the area to keep, Enter"),
             [Tool.Marquee] = ("select-rect", "Sel", "Rectangle select (M). Shift adds, Alt subtracts"),
-            [Tool.EllipseSelect] = ("select-ellipse", "Sel O", "Ellipse select (Shift+M)"),
-            [Tool.Lasso] = ("lasso", "Lasso", "Lasso (A): draw round an area"),
+            [Tool.EllipseSelect] = ("select-ellipse", "Sel O", "Oval select (M twice)"),
+            [Tool.Lasso] = ("lasso", "Lasso", "Lasso (L): draw round an area"),
             [Tool.Wand] = ("wand", "Wand", "Magic wand (W): click a colour"),
             [Tool.Eyedropper] = ("eyedropper", "Pick", "Eyedropper (I)"),
             [Tool.Pan] = ("pan", "Pan", "Pan (H)"),
-            [Tool.Pencil] = ("pencil", "Pencil", "Pencil (B)"),
+            [Tool.Pencil] = ("pencil", "Pencil", "Pencil (B, Y)"),
             [Tool.Eraser] = ("eraser", "Eraser", "Eraser (E)"),
             [Tool.Fill] = ("fill", "Fill", "Paint bucket (G)"),
-            [Tool.Gradient] = ("gradient", "Grad", "Gradient (Shift+G): drag"),
-            [Tool.Clone] = ("clone", "Clone", "Clone stamp (S): Alt+click the source, then paint"),
+            [Tool.Gradient] = ("gradient", "Grad", "Gradient (G twice): drag"),
+            [Tool.Clone] = ("clone", "Clone", "Rubber stamp (S): Alt+click the source, then paint"),
             [Tool.Text] = ("text", "Text", "Text (T): click where it goes"),
-            [Tool.Line] = ("line", "Line", "Line (L)"),
-            [Tool.Rectangle] = ("rect", "Rect", "Rectangle (R)"),
-            [Tool.Ellipse] = ("ellipse", "Oval", "Oval (O)"),
+            [Tool.Line] = ("line", "Line", "Line (N)"),
+            [Tool.Rectangle] = ("rect", "Rect", "Rectangle (U)"),
+            [Tool.Ellipse] = ("ellipse", "Oval", "Oval (U twice)"),
             [Tool.Pivot] = ("pivot", "Pivot", "Pivot point for game export"),
             [Tool.Hitbox] = ("hitbox", "Hitbox", "Hitbox for game export"),
         };
@@ -140,12 +140,7 @@ public sealed partial class MainForm
         _tips.SetToolTip(_fgSwatch, "Foreground colour (left mouse)");
         _tips.SetToolTip(_bgSwatch, "Secondary paint colour (right mouse; does not fill the canvas)");
         var swap = new IconButton { Text = "Swap", ShowText = true, Size = new Size(34, 24), Left = 78, Top = 7, Font = new Font(Font.FontFamily, 7.5f) };
-        swap.Click += (_, _) =>
-        {
-            (_fg, _bg) = (_bg, _fg);
-            _fgSwatch.BackColor = _fg;
-            _bgSwatch.BackColor = _bg;
-        };
+        swap.Click += (_, _) => SetColours(_bg, _fg);
         _tips.SetToolTip(swap, "Swap foreground and background");
         p.Controls.Add(_fgSwatch);
         p.Controls.Add(_bgSwatch);

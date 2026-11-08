@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Fireworks 8 keyboard shortcuts
+
+- Keyboard shortcuts now follow Fireworks 8's default set (Macromedia Standard). Tool letters match Fireworks, and pressing a letter again switches to the next tool in its group (V, M, U, G). Changed: Import Ctrl+R, Export Ctrl+Shift+R, Export preview Ctrl+Shift+X, numeric transform Ctrl+Shift+T, fit canvas Ctrl+Alt+F, trim canvas Ctrl+Alt+T, ungroup Ctrl+Shift+G, merge down Ctrl+E.
+- New: clone (Ctrl+Shift+D), duplicate (Ctrl+Alt+D), clone-and-nudge (Alt+arrows), align (Ctrl+Alt+1–6), arrange (Ctrl+Up/Down, with Shift for front/back), paste attributes, rotate 90°, zoom levels (Ctrl+1–8), guide toggles, Page Up/Down frames, play (Ctrl+Alt+P), D and X colours, Ctrl+Shift+Z redo, Backspace delete, Ctrl+Q exit.
+- Quick 50%/200% object scaling has no shortcut now, because Fireworks uses those keys for alignment.
+- Flint opens a file given on launch, so double-clicking or "Open with" works for Fireworks PNGs.
+
 ## Unreleased — Fireworks productivity commands
 
 - Added multi-object selection, nested grouping (Ctrl+G), ungroup (Ctrl+Alt+G / Ctrl+U), and flatten selection (Ctrl+Alt+Shift+Z). Groups are stored in format 10; older formats load.

@@ -104,8 +104,8 @@ public sealed partial class MainForm
         Add(xform, "&Free transform", Keys.Control | Keys.T, () => SetTool(Tool.Transform));
 
         xform.DropDownItems.Add(new ToolStripSeparator());
-        xform.DropDownItems.Add("Rotate 90° &clockwise", null, (_, _) => QuickTransform("rotate 90°", s => s.Rot = 90));
-        xform.DropDownItems.Add("Rotate 90° &anticlockwise", null, (_, _) => QuickTransform("rotate −90°", s => s.Rot = -90));
+        Add(xform, "Rotate 90° &clockwise", Keys.Control | Keys.Shift | Keys.D9, () => QuickTransform("rotate 90°", s => s.Rot = 90));
+        Add(xform, "Rotate 90° &anticlockwise", Keys.Control | Keys.Shift | Keys.D7, () => QuickTransform("rotate −90°", s => s.Rot = -90));
         xform.DropDownItems.Add("Rotate &180°", null, (_, _) => QuickTransform("rotate 180°", s => s.Rot = 180));
         xform.DropDownItems.Add("Flip &horizontal", null, (_, _) => QuickTransform("flip horizontal", s => s.Sx = -1));
         xform.DropDownItems.Add("Flip &vertical", null, (_, _) => QuickTransform("flip vertical", s => s.Sy = -1));
@@ -145,6 +145,7 @@ public sealed partial class MainForm
         Add(view, "Zoom &out", Keys.Control | Keys.OemMinus, () => Zoom(-1));
         Add(view, "&Actual pixels", Keys.Control | Keys.D1, () => { _zoom = 1; RefreshAll(); });
         Add(view, "&Fit on screen", Keys.Control | Keys.D0, () => { FitZoom(); RefreshAll(); });
+        BuildFireworksShortcuts();
         BuildRulerMenu(view);
         BuildWorkspaceMenu(view);
         AddThemeMenu(view);
@@ -1282,19 +1283,7 @@ public sealed partial class MainForm
             }
         }
         if (e.Control || e.Alt) return false;
-        switch (e.KeyCode)
-        {
-            case Keys.Q: SetTool(Tool.ObjectSelect); return true;
-            case Keys.V: SetTool(Tool.Move); return true;
-            case Keys.W: SetTool(Tool.Wand); return true;
-            case Keys.A: SetTool(Tool.Lasso); return true;
-            case Keys.C: SetTool(Tool.Crop); return true;
-            case Keys.T: SetTool(Tool.Text); return true;
-            case Keys.S: SetTool(Tool.Clone); return true;
-            case Keys.M when e.Shift: SetTool(Tool.EllipseSelect); return true;
-            case Keys.G when e.Shift: SetTool(Tool.Gradient); return true;
-        }
-        return false;
+        return FireworksToolKey(e.KeyCode);
     }
 
     #endregion
