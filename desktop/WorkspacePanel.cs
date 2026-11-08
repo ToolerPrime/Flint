@@ -122,27 +122,25 @@ public sealed class WorkspacePanel : Panel
         Disposed += (_, _) => _menu.Dispose();
     }
 
-    /// <summary>Starts a drag after the mouse moves a little with the button held: the callback says what is being dragged.</summary>
+    /// <summary>
+    /// Starts a drag after the mouse moves a little with the button held; the callback says what is being dragged.
+    /// From then on the manager follows the mouse itself, because the control that started the drag (a tab) may be
+    /// rebuilt or removed while the drag goes on.
+    /// </summary>
     private void HookDrag(Control c, Func<WorkspacePanel?> start)
     {
-        Point down = default, offset = default; bool pressed = false, dragging = false; WorkspacePanel? moving = null;
-        c.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { pressed = true; down = c.PointToScreen(e.Location); offset = e.Location; c.Capture = true; } };
+        Point down = default, offset = default; bool pressed = false;
+        c.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { pressed = true; down = c.PointToScreen(e.Location); offset = e.Location; } };
         c.MouseMove += (_, e) =>
         {
             if (!pressed || e.Button != MouseButtons.Left) return;
             var p = c.PointToScreen(e.Location);
-            if (!dragging && Math.Abs(p.X - down.X) + Math.Abs(p.Y - down.Y) < SystemInformation.DragSize.Width * 2) return;
-            if (!dragging) { moving = start(); dragging = moving != null; c.Capture = true; if (!dragging) return; }
-            _manager.DragTo(moving!, p, offset);
+            if (Math.Abs(p.X - down.X) + Math.Abs(p.Y - down.Y) < SystemInformation.DragSize.Width * 2) return;
+            pressed = false;
+            c.Capture = false;
+            if (start() is { } moving) _manager.FollowMouse(moving, offset);
         };
-        c.MouseUp += (_, e) =>
-        {
-            c.Capture = false; pressed = false;
-            if (!dragging || moving == null) return;
-            dragging = false;
-            _manager.EndDrag(moving, c.PointToScreen(e.Location));
-            moving = null;
-        };
+        c.MouseUp += (_, _) => pressed = false;
     }
 
     internal void AddPage(PanelPage page, bool activate = true)
@@ -180,7 +178,12 @@ public sealed class WorkspacePanel : Panel
         else { _header.Height = HeaderHeight; _arrow.Visible = _menuButton.Visible = _tabs.Visible = true; _grip.Dock = DockStyle.Left; }
         _grip.ContextMenuStrip = _menu;
         _body.Tag = strip ? "slim" : null;
-        foreach (Control c in _tabs.Controls.Cast<Control>().ToList()) { _tabs.Controls.Remove(c); c.Dispose(); }
+        foreach (Control c in _tabs.Controls.Cast<Control>().ToList())
+        {
+            _tabs.Controls.Remove(c);
+            // a tab's own click may be what triggered this rebuild: dispose it once that event has finished
+            if (IsHandleCreated && !IsDisposed) BeginInvoke(c.Dispose); else c.Dispose();
+        }
         if (!strip)
         {
             var row = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = Padding.Empty, Margin = Padding.Empty, Tag = "slim" };

@@ -21,7 +21,7 @@ public sealed partial class MainForm
     /// <summary>Built-in layouts, like Fireworks' Window > Workspace Layouts presets. The first is the default.</summary>
     internal static readonly (string name, Func<WorkspaceLayout> make)[] BuiltInLayouts =
     {
-        ("Default", () => Layout(
+        ("Default", () => MakeLayout(
             new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
             G(DockSide.Left, 0, "Tools"),
             G(DockSide.Right, 0, "Layers") with { Weight = 1.3 },
@@ -31,13 +31,13 @@ public sealed partial class MainForm
             G(DockSide.Right, 0, "Library") with { Collapsed = true },
             G(DockSide.Right, 0, "Properties"),
             G(DockSide.Bottom, 0, "Timeline"))),
-        ("Compact", () => Layout(
+        ("Compact", () => MakeLayout(
             new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
             G(DockSide.Left, 0, "Tools"),
             G(DockSide.Right, 0, "Layers", "Objects", "Effects", "History", "Library") with { Weight = 1.4 },
             G(DockSide.Right, 0, "Properties"),
             G(DockSide.Bottom, 0, "Timeline"))),
-        ("Painting", () => Layout(
+        ("Painting", () => MakeLayout(
             new[] { ("Tool options", DockSide.Top, 0) },
             G(DockSide.Left, 0, "Tools"),
             G(DockSide.Right, 0, "Layers", "History") with { Weight = 1.5 },
@@ -45,7 +45,7 @@ public sealed partial class MainForm
             G(DockSide.Right, 0, "Properties", "Objects"),
             G(DockSide.Bottom, 0, "Timeline") with { Collapsed = true },
             G(DockSide.Top, 0, "Main toolbar") with { Where = DockSide.Hidden })),
-        ("Animation", () => Sized(Layout(
+        ("Animation", () => Sized(MakeLayout(
             new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
             G(DockSide.Left, 0, "Tools"),
             G(DockSide.Left, 1, "Layers"),
@@ -58,7 +58,7 @@ public sealed partial class MainForm
 
     private static GroupState G(DockSide side, int column, params string[] pages) => new() { Pages = pages, Where = side, Column = column, Index = 1000 };
 
-    private static WorkspaceLayout Layout((string page, DockSide side, int row)[] strips, params GroupState[] groups)
+    private static WorkspaceLayout MakeLayout((string page, DockSide side, int row)[] strips, params GroupState[] groups)
     {
         var l = new WorkspaceLayout();
         foreach (var (page, side, row) in strips) l.Groups.Add(new GroupState { Pages = new[] { page }, Where = side, Column = row });

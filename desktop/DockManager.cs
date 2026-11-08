@@ -301,6 +301,33 @@ public sealed class DockManager
         return g;
     }
 
+    private System.Windows.Forms.Timer? _follow;
+
+    /// <summary>Drags a group with the mouse until the left button is let go, then drops it (Esc cancels the docking).</summary>
+    public void FollowMouse(WorkspacePanel g, Point grabOffset)
+    {
+        _follow?.Stop(); _follow?.Dispose();
+        _follow = new System.Windows.Forms.Timer { Interval = 15 };
+        _follow.Tick += (_, _) =>
+        {
+            var p = Control.MousePosition;
+            bool held = (Control.MouseButtons & MouseButtons.Left) != 0;
+            if (g.IsDisposed || !held || (Control.ModifierKeys == Keys.None && IsKeyDown(Keys.Escape)))
+            {
+                _follow!.Stop();
+                if (g.IsDisposed) { _hint?.Hide(); return; }
+                if (held) _hint?.Hide(); else EndDrag(g, p);   // Esc: leave it floating where it is
+                return;
+            }
+            DragTo(g, p, grabOffset);
+        };
+        _follow.Start();
+        DragTo(g, Control.MousePosition, grabOffset);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
+    private static bool IsKeyDown(Keys k) => (GetAsyncKeyState((int)k) & 0x8000) != 0;
+
     public void DragTo(WorkspacePanel g, Point screen, Point grabOffset)
     {
         if (g.FloatingWindow is { } f)
@@ -556,7 +583,7 @@ public sealed class DockManager
         if (pages.Count > 1) pages = pages.Where(p => !p.IsStrip).ToList() is { Count: > 0 } rest ? rest : pages.Take(1).ToList();   // a toolbar never shares a group
         foreach (var p in pages) placed.Add(p.Name);
         var g = NewGroup(pages.ToArray());
-        if (s.Active != null && pages.FirstOrDefault(p => p.Name == s.Active) is { } a) g.Activate(a);
+        g.Activate(pages.FirstOrDefault(p => p.Name == s.Active) ?? pages[0]);   // the saved tab, else the first
         if (s.Title != null) g.Title = s.Title;
         g.Weight = s.Weight > 0 && double.IsFinite(s.Weight) ? s.Weight : 1;
         return g;

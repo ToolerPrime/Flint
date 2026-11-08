@@ -99,6 +99,8 @@ public static class WorkspaceTest
         static string Shape(WorkspaceLayout l) => string.Join(";", l.Groups.Select(g => $"{g.Where}{g.Column}.{g.Index}:{string.Join(",", g.Pages)}:{g.Collapsed}:{g.Title}"));
         Check(Shape(back) == Shape(custom) && back.Extents["Right"].SequenceEqual(custom.Extents["Right"]), "a saved layout comes back exactly: tabs, columns, folds, names, widths");
         form.TestDeleteWorkspace("Mine"); Check(!Theme.WorkspaceNames.Contains("Mine"), "a saved layout can be deleted");
+        form.TestApplyLayout(MainForm.BuiltInLayouts.First(b => b.name == "Compact").make());
+        Check(G("Layers").Pages.Count == 5 && G("Layers").Active == P("Layers"), "Compact puts the side panels in one tab group, showing the first tab");
         foreach (var (name, make) in MainForm.BuiltInLayouts)
         {
             form.TestApplyLayout(make()); Application.DoEvents();
