@@ -96,7 +96,21 @@ public static class BrushTest
             Check(steps == 1, "one brush stroke is one undo step");
             form.TestUndo();
             using (var f = form.TestDocument.RenderFrame(0)) Check(ImageOps.GetPixels(f).All(b => b == 0), "undo removes the stroke completely");
+            form.TestSizeSlider.Value = 120;
+            Check(form.TestSizeNumber == 120 && form.TestBrush.Size == 120, "moving the size slider sets the number and the brush");
+            Check(Math.Abs(form.TestSizeSlider.Fraction(31.6m) - 0.5) < 0.01, "the size slider is logarithmic: the middle is about 32 px");
             form.TestSetBrush(BrushSettings.Presets[2]);
+            Check(form.TestSizeSlider.Value == 5, "choosing a preset moves the sliders too");
+            if (Environment.GetEnvironmentVariable("FLINT_BRUSH_UI_SHOT") is { Length: > 0 } shot)
+            {
+                form.TestToolKey(Keys.B); form.ClientSize = new Size(1400, 820); Application.DoEvents();
+                using var whole = new Bitmap(form.Width, form.Height); form.DrawToBitmap(whole, new Rectangle(Point.Empty, form.Size));
+                using var bar = whole.Clone(new Rectangle(0, 60, Math.Min(1400, whole.Width), 70), whole.PixelFormat);
+                using var list = form.TestPresetList();
+                using var sheet = new Bitmap(Math.Max(bar.Width, list.Width), bar.Height + list.Height + 8);
+                using (var g = Graphics.FromImage(sheet)) { g.Clear(Color.Gray); g.DrawImage(bar, 0, 0); g.DrawImage(list, 0, bar.Height + 8); }
+                sheet.Save(shot);
+            }
             Check(form.TestBrush.Name == "Hard Round Fine" && form.TestBrush.Size == 5, "choosing a preset loads its settings");
         }
         Console.WriteLine(fails == 0 ? "all brush checks passed" : $"{fails} brush checks failed");
