@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Fireworks-style workspace: tab groups, columns, toolbars
+
+- Panel groups, as in Fireworks: drag a panel onto another panel's title bar (or use its menu: Group ... with) to make them tabs in one box. Drag a tab out to separate it, or use New panel group. Rename panel group gives a group your own name.
+- Several columns per side: drop a panel on the outer or inner edge of a column to start a new column beside it.
+- Fold a whole side away: double-click the edge of a side (or Window > Fold away the left/right/bottom side); a thin strip with an arrow brings it back.
+- The main toolbar and the tool options bar are movable too: drag them by their dotted grip to the top or bottom, float them, or hide them (Window > Toolbars).
+- Every panel group has a dotted grip at the left of its title bar for dragging.
+- Built-in workspace layouts: Default, Compact (the side panels as tabs), Painting (no main toolbar, timeline folded) and Animation (bigger timeline, layers in their own column), next to the layouts you save.
+
 ## Unreleased — movable workspace, saved layouts
 
 - The Inspector is now separate panels: Layers, Objects, Effects, History, Library and Properties, alongside Tools and Timeline (8 panels).

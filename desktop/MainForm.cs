@@ -242,10 +242,8 @@ public sealed partial class MainForm : ThemedForm
 
         _workspace = new Panel { Dock = DockStyle.Fill };
         _workspace.Controls.Add(_canvas);
-        BuildDocking(box, inspector, bottom);
+        BuildDocking(box, inspector, bottom, tools, optionsBar);
         Controls.Add(_workspace);
-        Controls.Add(optionsBar);
-        Controls.Add(tools);
         Controls.Add(menu);
         Controls.Add(statusBar);
 
@@ -1418,9 +1416,9 @@ public sealed partial class MainForm : ThemedForm
         _timeline.InvalidateWaveforms();
         _timeline.Bind(_doc);
         int want = Math.Clamp(_timeline.PreferredHeight + 70, 200, 380);
-        if (_docks != null && !_docks.Column(DockSide.Bottom).UserSized && _timelinePane?.Column?.Side == DockSide.Bottom
-            && _docks.Column(DockSide.Bottom).Items.Count == 1)
-            _docks.Column(DockSide.Bottom).Height = want + WorkspacePanel.HeaderHeight + DockColumn.Bar;
+        // The bottom row follows the timeline's needs until you resize it yourself.
+        if (_timelinePane?.Group is { Collapsed: false, Pages.Count: 1, Column: { Side: DockSide.Bottom, UserSized: false } col } && col.Items.Count == 1)
+            col.Height = want + WorkspacePanel.HeaderHeight + DockColumn.Bar;
     }
 
     private int[] Delays() => _doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();

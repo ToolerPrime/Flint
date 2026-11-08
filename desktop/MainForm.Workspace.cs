@@ -4,7 +4,7 @@ public sealed partial class MainForm
 {
     private Panel _workspace = null!;
     private DockManager _docks = null!;
-    private WorkspacePanel _timelinePane = null!;
+    private PanelPage _timelinePane = null!;
     private ToolStripMenuItem _pixelSnapItem = null!;
     private bool _pixelSnap = Theme.PixelSnap;
     private Panel _canvasBackgroundSwatch = null!;
@@ -18,37 +18,79 @@ public sealed partial class MainForm
         view.DropDownItems.Add(_pixelSnapItem);
     }
 
-    /// <summary>Default arrangement: tools on the left, layers and properties on the right (the rest folded up), timeline at the bottom.</summary>
-    private static WorkspaceLayout DefaultLayout()
+    /// <summary>Built-in layouts, like Fireworks' Window > Workspace Layouts presets. The first is the default.</summary>
+    internal static readonly (string name, Func<WorkspaceLayout> make)[] BuiltInLayouts =
     {
-        var l = new WorkspaceLayout { LeftWidth = 100, RightWidth = 294, BottomHeight = 260 };
-        void P(string name, DockSide side, int index, double weight = 1, bool folded = false) =>
-            l.Panels[name] = new PanelState { Where = side, Index = index, Weight = weight, Collapsed = folded };
-        P("Tools", DockSide.Left, 0);
-        P("Layers", DockSide.Right, 1, 1.3);
-        P("Objects", DockSide.Right, 2, 1, true);
-        P("Effects", DockSide.Right, 3, 1, true);
-        P("History", DockSide.Right, 4, 1, true);
-        P("Library", DockSide.Right, 5, 1, true);
-        P("Properties", DockSide.Right, 6, 1);
-        P("Timeline", DockSide.Bottom, 0);
+        ("Default", () => Layout(
+            new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
+            G(DockSide.Left, 0, "Tools"),
+            G(DockSide.Right, 0, "Layers") with { Weight = 1.3 },
+            G(DockSide.Right, 0, "Objects") with { Collapsed = true },
+            G(DockSide.Right, 0, "Effects") with { Collapsed = true },
+            G(DockSide.Right, 0, "History") with { Collapsed = true },
+            G(DockSide.Right, 0, "Library") with { Collapsed = true },
+            G(DockSide.Right, 0, "Properties"),
+            G(DockSide.Bottom, 0, "Timeline"))),
+        ("Compact", () => Layout(
+            new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
+            G(DockSide.Left, 0, "Tools"),
+            G(DockSide.Right, 0, "Layers", "Objects", "Effects", "History", "Library") with { Weight = 1.4 },
+            G(DockSide.Right, 0, "Properties"),
+            G(DockSide.Bottom, 0, "Timeline"))),
+        ("Painting", () => Layout(
+            new[] { ("Tool options", DockSide.Top, 0) },
+            G(DockSide.Left, 0, "Tools"),
+            G(DockSide.Right, 0, "Layers", "History") with { Weight = 1.5 },
+            G(DockSide.Right, 0, "Effects", "Library") with { Collapsed = true },
+            G(DockSide.Right, 0, "Properties", "Objects"),
+            G(DockSide.Bottom, 0, "Timeline") with { Collapsed = true },
+            G(DockSide.Top, 0, "Main toolbar") with { Where = DockSide.Hidden })),
+        ("Animation", () => Sized(Layout(
+            new[] { ("Main toolbar", DockSide.Top, 0), ("Tool options", DockSide.Top, 1) },
+            G(DockSide.Left, 0, "Tools"),
+            G(DockSide.Left, 1, "Layers"),
+            G(DockSide.Left, 1, "Objects", "Effects") with { Collapsed = true },
+            G(DockSide.Right, 0, "Properties", "History", "Library"),
+            G(DockSide.Bottom, 0, "Timeline")), left: new[] { 110, 230 }, bottom: 340)),
+    };
+
+    private static WorkspaceLayout Sized(WorkspaceLayout l, int[] left, int bottom) { l.Extents["Left"] = left; l.Extents["Bottom"] = new[] { bottom }; return l; }
+
+    private static GroupState G(DockSide side, int column, params string[] pages) => new() { Pages = pages, Where = side, Column = column, Index = 1000 };
+
+    private static WorkspaceLayout Layout((string page, DockSide side, int row)[] strips, params GroupState[] groups)
+    {
+        var l = new WorkspaceLayout();
+        foreach (var (page, side, row) in strips) l.Groups.Add(new GroupState { Pages = new[] { page }, Where = side, Column = row });
+        int i = 0;
+        foreach (var g in groups) { g.Index = i++; l.Groups.Add(g); }   // Hidden entries keep a panel closed in this layout
+        l.Extents["Left"] = new[] { 110 }; l.Extents["Right"] = new[] { 294 }; l.Extents["Bottom"] = new[] { 260 };
         return l;
     }
 
-    private void BuildDocking(Control tools, List<(string name, Control content, Size min)> inspector, Control timeline)
+    private void BuildDocking(Control tools, List<(string name, Control content, Size min)> inspector, Control timeline, Control mainToolbar, Control optionsBar)
     {
-        _docks = new DockManager(this, _workspace) { Default = DefaultLayout() };
-        _docks.Add("Tools", tools, new Size(60, 200));
-        foreach (var (name, content, min) in inspector) _docks.Add(name, content, min);
-        _timelinePane = _docks.Add("Timeline", timeline, new Size(500, 120));
+        _docks = new DockManager(this, _workspace) { Default = BuiltInLayouts[0].make(), Prompt = AskName };
+        _docks.AddPage("Main toolbar", mainToolbar, new Size(300, 32), 32);
+        _docks.AddPage("Tool options", optionsBar, new Size(300, 40), 40);
+        _docks.AddPage("Tools", tools, new Size(60, 200));
+        foreach (var (name, content, min) in inspector) _docks.AddPage(name, content, min);
+        _timelinePane = _docks.AddPage("Timeline", timeline, new Size(500, 120));
         var start = Program.Headless ? null : Theme.LastWorkspace;
-        _docks.Apply(start ?? _docks.Default);
-        if (start != null) _docks.Column(DockSide.Bottom).UserSized = true;
+        try { _docks.Apply(start ?? _docks.Default); }
+        catch (Exception ex) when (start != null) { Say("Your saved workspace could not be restored, so the default is shown (" + ex.Message + ")"); _docks.Apply(_docks.Default); }
+        if (start != null) foreach (var c in _docks.Columns(DockSide.Bottom)) c.UserSized = true;
         FormClosing += (_, e) => { if (!e.Cancel && !Program.Headless) Theme.LastWorkspace = _docks.Capture(); };
         BuildWindowMenu();
     }
 
-    /// <summary>Window menu, as in Fireworks: show or hide each panel, and save or switch workspace layouts.</summary>
+    private string? AskName(string current)
+    {
+        using var dlg = new RenameDialog(current) { Text = "Rename panel group" };
+        return dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value) ? dlg.Value.Trim() : null;
+    }
+
+    /// <summary>Window menu, as in Fireworks: toolbars, every panel, folding sides, and workspace layouts.</summary>
     private void BuildWindowMenu()
     {
         var window = new ToolStripMenuItem("&Window");
@@ -59,35 +101,54 @@ public sealed partial class MainForm
         };
         foreach (var (name, key) in keys)
         {
-            var p = _docks.Find(name);
-            if (p != null) _productivityShortcuts.Add(key, () => _docks.Toggle(p));
+            var p = _docks.FindPage(name);
+            if (p != null) _productivityShortcuts.Add(key, () => _docks.TogglePage(p));
         }
         _productivityShortcuts.Add(Keys.F4, ToggleAllPanels);
         window.DropDownOpening += (_, _) =>
         {
             window.DropDownItems.Clear();
-            foreach (var p in _docks.Panels)
+            var toolbars = new ToolStripMenuItem("&Toolbars");
+            foreach (var p in _docks.Pages.Where(p => p.IsStrip))
             {
-                var panel = p;
-                var item = new ToolStripMenuItem(panel.Name, null, (_, _) => _docks.Toggle(panel)) { Checked = !panel.IsHidden };
-                if (keys.TryGetValue(panel.Name, out var k)) item.ShortcutKeyDisplayString = new KeysConverter().ConvertToString(k);
+                var page = p;
+                toolbars.DropDownItems.Add(new ToolStripMenuItem(page.Name, null, (_, _) => _docks.TogglePage(page)) { Checked = _docks.IsShowing(page) });
+            }
+            window.DropDownItems.Add(toolbars);
+            window.DropDownItems.Add(new ToolStripSeparator());
+            foreach (var p in _docks.Pages.Where(p => !p.IsStrip))
+            {
+                var page = p;
+                var item = new ToolStripMenuItem(page.Name, null, (_, _) => _docks.TogglePage(page)) { Checked = _docks.IsShowing(page) };
+                if (keys.TryGetValue(page.Name, out var k)) item.ShortcutKeyDisplayString = new KeysConverter().ConvertToString(k);
                 window.DropDownItems.Add(item);
             }
             window.DropDownItems.Add(new ToolStripSeparator());
             window.DropDownItems.Add(new ToolStripMenuItem("Hide / show all panels", null, (_, _) => ToggleAllPanels()) { ShortcutKeyDisplayString = "F4" });
+            foreach (var side in new[] { DockSide.Left, DockSide.Right, DockSide.Bottom })
+            {
+                var s = side;
+                if (_docks.Columns(s).Count == 0) continue;
+                window.DropDownItems.Add(new ToolStripMenuItem($"Fold away the {s.ToString().ToLowerInvariant()} side", null, (_, _) => _docks.FoldSide(s, !_docks.IsFolded(s))) { Checked = _docks.IsFolded(s) });
+            }
             window.DropDownItems.Add(new ToolStripSeparator());
             var layouts = new ToolStripMenuItem("&Workspace layouts");
+            foreach (var (name, make) in BuiltInLayouts)
+            {
+                var m = make; string n = name;
+                layouts.DropDownItems.Add(n, null, (_, _) => ApplyLayout(m(), n));
+            }
+            if (Theme.WorkspaceNames.Count > 0) layouts.DropDownItems.Add(new ToolStripSeparator());
             foreach (var name in Theme.WorkspaceNames)
             {
                 string n = name;
                 layouts.DropDownItems.Add(n, null, (_, _) => LoadWorkspace(n));
             }
-            if (layouts.DropDownItems.Count > 0) layouts.DropDownItems.Add(new ToolStripSeparator());
+            layouts.DropDownItems.Add(new ToolStripSeparator());
             layouts.DropDownItems.Add("&Save current layout…", null, (_, _) => SaveWorkspaceAs());
             var del = new ToolStripMenuItem("&Delete layout") { Enabled = Theme.WorkspaceNames.Count > 0 };
             foreach (var name in Theme.WorkspaceNames) { string n = name; del.DropDownItems.Add(n, null, (_, _) => DeleteWorkspace(n)); }
             layouts.DropDownItems.Add(del);
-            layouts.DropDownItems.Add("&Reset to default", null, (_, _) => ResetWorkspace());
             window.DropDownItems.Add(layouts);
         };
         window.DropDownItems.Add("(panels)");   // filled when opened
@@ -96,12 +157,19 @@ public sealed partial class MainForm
 
     private WorkspaceLayout? _beforeHideAll;
 
-    /// <summary>F4: hide every panel for a clear view of the canvas; press again to bring them back.</summary>
+    /// <summary>F4: hide every panel (toolbars stay) for a clear view of the canvas; press again to bring them back.</summary>
     private void ToggleAllPanels()
     {
         if (_beforeHideAll is { } back) { _beforeHideAll = null; _docks.Apply(back); return; }
         _beforeHideAll = _docks.Capture();
-        foreach (var p in _docks.Panels.ToList()) _docks.Hide(p);
+        foreach (var p in _docks.Pages.Where(p => !p.IsStrip).ToList()) _docks.HidePage(p);
+    }
+
+    private void ApplyLayout(WorkspaceLayout l, string name)
+    {
+        _beforeHideAll = null;
+        _docks.Apply(l);
+        Say($"workspace layout \"{name}\"");
     }
 
     private void SaveWorkspaceAs()
@@ -109,6 +177,7 @@ public sealed partial class MainForm
         using var dlg = new RenameDialog("My workspace") { Text = "Save workspace layout" };
         if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.Value)) return;
         string name = dlg.Value.Trim();
+        if (BuiltInLayouts.Any(b => b.name.Equals(name, StringComparison.OrdinalIgnoreCase))) { Say($"\"{name}\" is a built-in layout; pick another name"); return; }
         if (Theme.WorkspaceNames.Contains(name) && !SuppressPrompts
             && MessageBox.Show(this, $"Replace the saved layout \"{name}\"?", "Save workspace layout", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         Theme.SaveWorkspace(name, _docks.Capture());
@@ -118,10 +187,8 @@ public sealed partial class MainForm
     private void LoadWorkspace(string name)
     {
         if (Theme.LoadWorkspace(name) is not { } l) { Say($"no layout called \"{name}\""); return; }
-        _beforeHideAll = null;
-        _docks.Apply(l);
-        _docks.Column(DockSide.Bottom).UserSized = true;
-        Say($"workspace layout \"{name}\"");
+        ApplyLayout(l, name);
+        foreach (var c in _docks.Columns(DockSide.Bottom)) c.UserSized = true;
     }
 
     private void DeleteWorkspace(string name)
@@ -134,9 +201,7 @@ public sealed partial class MainForm
 
     private void ResetWorkspace()
     {
-        _beforeHideAll = null;
-        _docks.Apply(_docks.Default);
-        _docks.Column(DockSide.Bottom).UserSized = false;
+        ApplyLayout(_docks.Default, "Default");
         RebuildStrip();
     }
 
@@ -183,6 +248,7 @@ public sealed partial class MainForm
     internal void TestLoadWorkspace(string name) => LoadWorkspace(name);
     internal void TestDeleteWorkspace(string name) => DeleteWorkspace(name);
     internal void TestToggleAllPanels() => ToggleAllPanels();
+    internal void TestApplyLayout(WorkspaceLayout l) => _docks.Apply(l);
     internal bool TestPixelSnap { get => _pixelSnap; set { _pixelSnap = value; _pixelSnapItem.Checked = value; } }
     internal (double x, double y) TestTranslation => (_xf!.Tx, _xf.Ty);
     internal double TestTransformRight => _xf!.Corners().Max(p => p.X);

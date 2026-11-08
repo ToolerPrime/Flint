@@ -2,82 +2,121 @@
 
 public static class WorkspaceTest
 {
-    /// <summary>Movable panels: docking anywhere, folding, dividers, floating, hiding, saved layouts.</summary>
+    /// <summary>Fireworks-style workspace: tab groups, several columns per side, folding sides, toolbars as strips, layouts.</summary>
     private static void WorkspaceChecks(MainForm form, Action<bool, string> Check)
     {
         Console.WriteLine("Workspace panels");
         form.ClientSize = new Size(1400, 900); Application.DoEvents();
         var docks = form.TestDocks;
-        WorkspacePanel P(string n) => docks.Find(n)!;
-        string Where(string n) => P(n).Column?.Side.ToString() ?? (P(n).FloatingWindow != null ? "Float" : "Hidden");
-        Check(docks.Panels.Count == 8 && Where("Tools") == "Left" && Where("Layers") == "Right" && Where("Properties") == "Right" && Where("Timeline") == "Bottom",
-            "default: tools left, layers to properties on the right, timeline at the bottom (8 panels)");
-        Check(P("History").Collapsed && !P("Layers").Collapsed && P("History").Height == WorkspacePanel.HeaderHeight, "History starts folded up to its title bar");
-        void Shot(string tag) { if (Environment.GetEnvironmentVariable("FLINT_WS_SHOT") is { Length: > 0 } dir) { using var b = new Bitmap(form.Width, form.Height); form.DrawToBitmap(b, new Rectangle(Point.Empty, form.Size)); b.Save(Path.Combine(dir, "ws-" + tag + ".png")); } }
-        Shot("default");
-        var original = docks.Capture();
-        var originalBounds = docks.Panels.ToDictionary(p => p.Name, p => p.Bounds);
-        var contents = docks.Panels.ToDictionary(p => p.Name, p => p.Content);
+        PanelPage P(string n) => docks.FindPage(n)!;
+        WorkspacePanel G(string n) => P(n).Group!;
+        string Where(string n) => P(n).Group is not { } g ? "Hidden" : g.Column?.Side.ToString() ?? "Float";
+        void Shot(string tag) { if (Environment.GetEnvironmentVariable("FLINT_WS_SHOT") is { Length: > 0 } dir) { Application.DoEvents(); using var b = new Bitmap(form.Width, form.Height); form.DrawToBitmap(b, new Rectangle(Point.Empty, form.Size)); b.Save(Path.Combine(dir, "ws-" + tag + ".png")); } }
 
-        foreach (var pane in docks.Panels.ToList())
+        Check(docks.Pages.Count == 10 && Where("Main toolbar") == "Top" && Where("Tool options") == "Top" && Where("Tools") == "Left"
+            && Where("Layers") == "Right" && Where("Timeline") == "Bottom", "default: toolbars on top, tools left, panels right, timeline bottom (10 pages)");
+        Check(docks.Columns(DockSide.Top).Count == 2 && docks.Columns(DockSide.Top).All(c => c.StripOnly) && G("Main toolbar").IsStrip,
+            "each toolbar sits in its own row as a strip with a grip, no title bar");
+        Check(G("History").Collapsed && G("History").Height == WorkspacePanel.HeaderHeight, "History starts folded up to its title bar");
+        Shot("default");
+        var defaults = docks.Capture();
+        var contents = docks.Pages.ToDictionary(p => p.Name, p => p.Content);
+
+        // every group floats and comes back
+        foreach (var g in docks.Groups.ToList())
         {
-            var side = pane.Column!.Side; bool folded = pane.Collapsed;
-            docks.Float(pane); Application.DoEvents();
-            Check(pane.FloatingWindow?.Owner == form && !pane.Content.IsDisposed && pane.Column == null, $"{pane.Name} floats with its live controls");
-            pane.FloatingWindow!.Close(); Application.DoEvents();
-            Check(pane.FloatingWindow == null && pane.Column?.Side == side && pane.Collapsed == folded && ReferenceEquals(pane.Content.Parent, pane), $"closing {pane.Name}'s window puts it back where it was, folded as before");
+            var side = g.Column!.Side; bool folded = g.Collapsed; var pages = g.Pages.ToList();
+            docks.Float(g); Application.DoEvents();
+            Check(g.FloatingWindow?.Owner == form && g.Column == null && pages.All(p => !p.Content.IsDisposed), $"{g.Title} floats with its live controls");
+            g.FloatingWindow!.Close(); Application.DoEvents();
+            Check(g.FloatingWindow == null && g.Column?.Side == side && g.Collapsed == folded, $"closing {g.Title}'s window puts it back, folded as before");
         }
 
-        docks.Dock(P("Timeline"), DockSide.Right, 0); docks.Dock(P("Tools"), DockSide.Bottom, 0); Application.DoEvents();
-        Check(Where("Timeline") == "Right" && docks.Column(DockSide.Right).Items[0] == P("Timeline") && Where("Tools") == "Bottom"
-            && !docks.Column(DockSide.Left).Visible, "any panel docks on any side; an emptied side disappears");
-        var col = docks.Column(DockSide.Right);
-        int before = P("Layers").Height;
-        P("History").Collapsed = false; Application.DoEvents();
-        Check(P("History").Height > WorkspacePanel.HeaderHeight && P("Layers").Height < before, "unfolding a panel shares the column's height");
-        P("Timeline").Collapsed = true; Application.DoEvents();   // room to drag in this crowded column
-        int at = col.Items.ToList().IndexOf(P("Layers"));
-        var below = col.Items.Skip(at + 1).First(i => !i.Collapsed);
-        double wa = P("Layers").Weight, wb = below.Weight; int h0 = P("Layers").Height, b0 = below.Height;
-        col.DragBar(at, 40, wa, wb); Application.DoEvents();
-        int grew = P("Layers").Height - h0, shrank = b0 - below.Height;
-        Check(grew > 0 && Math.Abs(grew - shrank) <= 2 && below.Height >= below.MinContent.Height + WorkspacePanel.HeaderHeight - 1,
-            $"dragging a divider grows one panel and shrinks the next open one, never below its minimum (+{grew} / -{shrank})");
-        col.Extent = 360; Check(col.Width == 360, "a dock column's width can be dragged");
+        // tab groups
+        docks.MovePage(P("History"), G("Layers"));
+        Check(G("Layers") == G("History") && G("Layers").Pages.Count == 2 && G("Layers").Active == P("History"), "Group History with Layers: one box, two tabs, History showing");
+        G("Layers").Activate(P("Layers"));
+        Check(P("Layers").Content.Visible && P("Layers").Content.Parent != null && P("History").Content.Parent == null, "switching tabs shows that page's controls only");
+        Check(docks.TargetAt(G("Library").HeaderScreenBounds.Location + new Size(30, 8), G("Effects")) is { Kind: DropKind.Tab } t && t.Group == G("Library"),
+            "dragging a panel over another panel's title bar offers to group it in as a tab");
+        docks.Drop(G("Effects"), new DropTarget(DropKind.Tab, DockSide.Right, 0, 0, G("Library")));
+        Check(G("Effects") == G("Library") && G("Library").Pages.Count == 2, "dropping on a title bar groups it as a tab");
+        var split = G("Layers");
+        docks.SplitPage(P("History"));
+        Check(G("History") != split && G("History").Column == split.Column, "New panel group takes a tab out into its own group next to it");
+        docks.Prompt = _ => "My Stuff";
+        docks.RenameGroup(G("Library"));
+        Check(G("Library").Title == "My Stuff", "a panel group can be renamed");
 
-        var tl = docks.Column(DockSide.Right).PointToScreen(new Point(10, 5));
-        Check(docks.TargetAt(tl) is { side: DockSide.Right, index: 0 }, "dropping on the top of the right column docks there, first");
-        var host = docks.Column(DockSide.Bottom).Parent!;
-        Check(docks.TargetAt(host.PointToScreen(new Point(10, 300))) is { side: DockSide.Left }, "dropping near the empty left edge docks on the left");
-        Check(docks.TargetAt(host.PointToScreen(new Point(host.Width / 2, 300))) == null, "dropping over the middle of the canvas leaves the panel floating");
+        // several columns per side
+        docks.Drop(G("Layers"), new DropTarget(DropKind.NewColumn, DockSide.Right, 1, 0, null));
+        Check(docks.Columns(DockSide.Right).Count == 2 && G("Layers").Column == docks.Columns(DockSide.Right)[1], "dropping at a column's inner edge makes a second column beside it");
+        docks.Drop(G("Timeline"), new DropTarget(DropKind.NewColumn, DockSide.Left, 1, 0, null));
+        Check(Where("Timeline") == "Left" && docks.Columns(DockSide.Left).Count == 2 && docks.Columns(DockSide.Bottom).Count == 0, "the timeline can go to the left; the empty bottom row disappears");
+        var right = docks.Columns(DockSide.Right)[0];
+        var edge = right.PointToScreen(new Point(right.Width - 6, right.Height / 2));
+        Check(docks.TargetAt(edge, G("Tools")) is { Kind: DropKind.NewColumn, Side: DockSide.Right, Column: 0 }, "the outer edge of a column offers a new column outside it");
+        var mid = right.PointToScreen(new Point(right.Width / 2, 60));
+        Check(docks.TargetAt(mid, G("Tools")) is { Kind: DropKind.Insert or DropKind.Tab }, "the middle of a column offers to insert there");
 
-        docks.Hide(P("Library")); Check(P("Library").IsHidden && !P("Library").Visible, "a panel can be closed");
-        docks.Show(P("Library")); Check(P("Library").Column != null, "and shown again (Window menu)");
+        // toolbars move
+        docks.DockNewColumnOrEnd(G("Tool options"), DockSide.Bottom);
+        Check(Where("Tool options") == "Bottom" && G("Tool options").Column!.StripOnly && G("Tool options").Column!.Height == 40, "the options bar docks at the bottom, in its own 40 px row");
+        Check(docks.TargetAt(right.PointToScreen(new Point(right.Width / 2, 200)), G("Main toolbar")) is not { Kind: DropKind.Insert or DropKind.Tab },
+            "a toolbar never goes into a panel column or tab group");
+        docks.HidePage(P("Main toolbar"));
+        Check(Where("Main toolbar") == "Hidden", "a toolbar can be hidden (Window > Toolbars)");
+        docks.ShowPage(P("Main toolbar"));
+        Check(Where("Main toolbar") == "Top", "and shown again where it was");
 
+        // fold a side
+        docks.FoldSide(DockSide.Left, true); Application.DoEvents();
+        Check(docks.IsFolded(DockSide.Left) && docks.Columns(DockSide.Left).All(c => !c.Visible) && !docks.IsShowing(P("Tools")), "a whole side folds away");
+        docks.ShowPage(P("Tools"));
+        Check(!docks.IsFolded(DockSide.Left) && docks.IsShowing(P("Tools")), "showing a panel on a folded side unfolds it");
+
+        // divider
+        var col = G("Library").Column!;
+        foreach (var g in col.Items) g.Collapsed = g != G("Library") && g != col.Items[0];
+        Application.DoEvents();
+        int at = col.Items.ToList().IndexOf(col.Items[0]);
+        var a = col.Items[0]; var below = col.Items.Skip(1).First(i => !i.Collapsed);
+        int h0 = a.Height, b0 = below.Height;
+        col.DragBar(at, 30, a.Weight, below.Weight); Application.DoEvents();
+        int grew = a.Height - h0, shrank = b0 - below.Height;
+        Check(grew > 0 && Math.Abs(grew - shrank) <= 2, $"dragging a divider grows one group and shrinks the next open one (+{grew} / -{shrank})");
         Shot("custom");
-        var custom = docks.Capture();
-        form.TestSaveWorkspace("Painting");
-        form.TestResetWorkspace(); Application.DoEvents();
-        Check(docks.Panels.All(p => p.Bounds == originalBounds[p.Name] && ReferenceEquals(p.Content, contents[p.Name]) && !p.Content.IsDisposed),
-            "reset to default restores every panel's original place and size, keeping its controls");
-        form.TestLoadWorkspace("Painting"); Application.DoEvents();
-        var back = docks.Capture();
-        Check(back.Panels.All(kv => custom.Panels[kv.Key].Where == kv.Value.Where && custom.Panels[kv.Key].Index == kv.Value.Index
-            && custom.Panels[kv.Key].Collapsed == kv.Value.Collapsed) && back.RightWidth == custom.RightWidth,
-            "a saved layout comes back exactly: sides, order, folded panels, column widths");
-        Check(Theme.WorkspaceNames.Contains("Painting"), "saved layouts are listed by name");
-        form.TestDeleteWorkspace("Painting"); Check(!Theme.WorkspaceNames.Contains("Painting"), "a saved layout can be deleted");
 
+        // layouts
+        var custom = docks.Capture();
+        form.TestSaveWorkspace("Mine");
+        form.TestResetWorkspace(); Application.DoEvents();
+        var reset = docks.Capture();
+        Check(System.Text.Json.JsonSerializer.Serialize(reset) == System.Text.Json.JsonSerializer.Serialize(defaults)
+            && docks.Pages.All(p => ReferenceEquals(p.Content, contents[p.Name]) && !p.Content.IsDisposed), "Reset to default restores the default layout exactly, keeping every control");
+        form.TestLoadWorkspace("Mine"); Application.DoEvents();
+        var back = docks.Capture();
+        static string Shape(WorkspaceLayout l) => string.Join(";", l.Groups.Select(g => $"{g.Where}{g.Column}.{g.Index}:{string.Join(",", g.Pages)}:{g.Collapsed}:{g.Title}"));
+        Check(Shape(back) == Shape(custom) && back.Extents["Right"].SequenceEqual(custom.Extents["Right"]), "a saved layout comes back exactly: tabs, columns, folds, names, widths");
+        form.TestDeleteWorkspace("Mine"); Check(!Theme.WorkspaceNames.Contains("Mine"), "a saved layout can be deleted");
+        foreach (var (name, make) in MainForm.BuiltInLayouts)
+        {
+            form.TestApplyLayout(make()); Application.DoEvents();
+            Check(docks.Pages.All(p => p.Group != null || (name == "Painting" && p.Name == "Main toolbar")) && docks.Groups.All(g => g.Pages.Count > 0),
+                $"built-in layout \"{name}\" places every panel");
+        }
         var json = System.Text.Json.JsonSerializer.Serialize(custom);
-        var copy = System.Text.Json.JsonSerializer.Deserialize<WorkspaceLayout>(json)!;
-        Check(copy.Panels.Count == 8 && copy.Panels["Timeline"].Where == DockSide.Right, "layouts survive being written to and read from the settings file");
-        var odd = new WorkspaceLayout { RightWidth = -5 }; odd.Panels["Nope"] = new PanelState { Where = DockSide.Left };
-        docks.Apply(odd); Application.DoEvents();
-        Check(docks.Panels.All(p => p.Column != null) && docks.Column(DockSide.Right).Width >= 120, "a layout missing panels or with bad sizes falls back to defaults");
+        Check(Shape(System.Text.Json.JsonSerializer.Deserialize<WorkspaceLayout>(json)!) == Shape(custom), "layouts survive being written to and read from the settings file");
+        var odd = new WorkspaceLayout();
+        odd.Groups.Add(new GroupState { Pages = new[] { "Nope", "Layers", "Main toolbar" }, Where = DockSide.Left, Column = 7 });
+        odd.Extents["Right"] = new[] { -5, 99999 };
+        form.TestApplyLayout(odd); Application.DoEvents();
+        Check(docks.Pages.All(p => p.Group != null) && Where("Layers") == "Left", "a damaged layout keeps what it can and puts the rest where the default does");
 
         form.TestResetWorkspace();
-        form.TestToggleAllPanels(); Check(docks.Panels.All(p => p.IsHidden), "F4 hides every panel");
-        form.TestToggleAllPanels(); Check(docks.Panels.All(p => !p.IsHidden) && docks.Capture().Panels["Layers"].Where == DockSide.Right, "F4 again brings them all back");
+        form.TestToggleAllPanels();
+        Check(docks.Pages.Where(p => !p.IsStrip).All(p => p.Group == null) && docks.Pages.Where(p => p.IsStrip).All(p => p.Group != null), "F4 hides every panel but keeps the toolbars");
+        form.TestToggleAllPanels(); Check(docks.Pages.All(p => p.Group != null), "F4 again brings them all back");
         form.TestResetWorkspace(); Application.DoEvents();
     }
 

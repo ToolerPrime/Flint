@@ -195,6 +195,6 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Exact pixels everywhere | Working | Every alpha level through every path, checked against PIL |
 | Exports off the UI thread | Working | |
 | Memory indicator | Working | Status bar |
-| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels (Tools, Layers, Objects, Effects, History, Library, Properties, Timeline) dock left/right/bottom by dragging, stack with dividers, fold up, float, hide (Window menu, F2 etc., F4 all); named workspace layouts saved; last layout restored on start |
+| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels plus the main toolbar and tool options bar; drag to dock on any side, several columns per side, tab groups (Group with, rename), dividers, fold a panel or a whole side, float, hide (Window menu, F2 etc., F4); built-in layouts (Default, Compact, Painting, Animation) and named saved layouts; last layout restored on start. Not done: several documents open at once in their own windows |
 
 Productivity update: Image includes fit/trim/clip and resize quality commands for animation content. Group paths use format 10. See the workspace research/productivity-integration.md for verified Fireworks shortcut provenance and Flint extensions.
