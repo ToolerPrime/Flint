@@ -1,4 +1,4 @@
-/* Flint's look: one palette, a dark default and a light alternative.
+﻿/* Flint's look: one palette, a dark default and a light alternative.
  * Dark = near-black surround, grey panels, one mint accent. Everything that
  * paints itself reads these values at paint time, and Theme.Apply restyles the
  * standard WinForms controls, so switching theme needs no restart.
@@ -30,6 +30,8 @@ public static class Theme
         public Dictionary<string, bool> Collapsed { get; set; } = new();
         public bool Frames { get; set; }
         public bool PixelSnap { get; set; } = true;
+        public Dictionary<string, WorkspaceLayout> Workspaces { get; set; } = new();
+        public WorkspaceLayout? LastWorkspace { get; set; }
     }
     private static Data _data = new();
     private static string SettingsPath => Path.Combine(
@@ -83,6 +85,21 @@ public static class Theme
         get => Program.Headless || _data.PixelSnap;
         set { if (Program.Headless) return; _data.PixelSnap = value; Save(); }
     }
+
+    /// <summary>The panel layout when Flint last closed (never read or written in headless runs).</summary>
+    public static WorkspaceLayout? LastWorkspace
+    {
+        get => Program.Headless ? null : _data.LastWorkspace;
+        set { if (Program.Headless) return; _data.LastWorkspace = value; Save(); }
+    }
+
+    // Saved workspace layouts. Headless runs (tests) keep them in memory only, so they never touch your settings file.
+    private static readonly Dictionary<string, WorkspaceLayout> _testWorkspaces = new();
+    private static Dictionary<string, WorkspaceLayout> Workspaces => Program.Headless ? _testWorkspaces : _data.Workspaces;
+    public static IReadOnlyList<string> WorkspaceNames => Workspaces.Keys.OrderBy(k => k, StringComparer.CurrentCultureIgnoreCase).ToList();
+    public static WorkspaceLayout? LoadWorkspace(string name) => Workspaces.TryGetValue(name, out var l) ? l : null;
+    public static void SaveWorkspace(string name, WorkspaceLayout layout) { Workspaces[name] = layout; if (!Program.Headless) Save(); }
+    public static void DeleteWorkspace(string name) { if (Workspaces.Remove(name) && !Program.Headless) Save(); }
 
     public static bool IsCollapsed(string key, bool dflt) => _data.Collapsed.TryGetValue(key, out var v) ? v : dflt;
     public static void SetCollapsed(string key, bool v) { _data.Collapsed[key] = v; Save(); }

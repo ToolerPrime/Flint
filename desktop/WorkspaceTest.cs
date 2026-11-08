@@ -1,7 +1,86 @@
-namespace Flint;
+﻿namespace Flint;
 
 public static class WorkspaceTest
 {
+    /// <summary>Movable panels: docking anywhere, folding, dividers, floating, hiding, saved layouts.</summary>
+    private static void WorkspaceChecks(MainForm form, Action<bool, string> Check)
+    {
+        Console.WriteLine("Workspace panels");
+        form.ClientSize = new Size(1400, 900); Application.DoEvents();
+        var docks = form.TestDocks;
+        WorkspacePanel P(string n) => docks.Find(n)!;
+        string Where(string n) => P(n).Column?.Side.ToString() ?? (P(n).FloatingWindow != null ? "Float" : "Hidden");
+        Check(docks.Panels.Count == 8 && Where("Tools") == "Left" && Where("Layers") == "Right" && Where("Properties") == "Right" && Where("Timeline") == "Bottom",
+            "default: tools left, layers to properties on the right, timeline at the bottom (8 panels)");
+        Check(P("History").Collapsed && !P("Layers").Collapsed && P("History").Height == WorkspacePanel.HeaderHeight, "History starts folded up to its title bar");
+        void Shot(string tag) { if (Environment.GetEnvironmentVariable("FLINT_WS_SHOT") is { Length: > 0 } dir) { using var b = new Bitmap(form.Width, form.Height); form.DrawToBitmap(b, new Rectangle(Point.Empty, form.Size)); b.Save(Path.Combine(dir, "ws-" + tag + ".png")); } }
+        Shot("default");
+        var original = docks.Capture();
+        var originalBounds = docks.Panels.ToDictionary(p => p.Name, p => p.Bounds);
+        var contents = docks.Panels.ToDictionary(p => p.Name, p => p.Content);
+
+        foreach (var pane in docks.Panels.ToList())
+        {
+            var side = pane.Column!.Side; bool folded = pane.Collapsed;
+            docks.Float(pane); Application.DoEvents();
+            Check(pane.FloatingWindow?.Owner == form && !pane.Content.IsDisposed && pane.Column == null, $"{pane.Name} floats with its live controls");
+            pane.FloatingWindow!.Close(); Application.DoEvents();
+            Check(pane.FloatingWindow == null && pane.Column?.Side == side && pane.Collapsed == folded && ReferenceEquals(pane.Content.Parent, pane), $"closing {pane.Name}'s window puts it back where it was, folded as before");
+        }
+
+        docks.Dock(P("Timeline"), DockSide.Right, 0); docks.Dock(P("Tools"), DockSide.Bottom, 0); Application.DoEvents();
+        Check(Where("Timeline") == "Right" && docks.Column(DockSide.Right).Items[0] == P("Timeline") && Where("Tools") == "Bottom"
+            && !docks.Column(DockSide.Left).Visible, "any panel docks on any side; an emptied side disappears");
+        var col = docks.Column(DockSide.Right);
+        int before = P("Layers").Height;
+        P("History").Collapsed = false; Application.DoEvents();
+        Check(P("History").Height > WorkspacePanel.HeaderHeight && P("Layers").Height < before, "unfolding a panel shares the column's height");
+        P("Timeline").Collapsed = true; Application.DoEvents();   // room to drag in this crowded column
+        int at = col.Items.ToList().IndexOf(P("Layers"));
+        var below = col.Items.Skip(at + 1).First(i => !i.Collapsed);
+        double wa = P("Layers").Weight, wb = below.Weight; int h0 = P("Layers").Height, b0 = below.Height;
+        col.DragBar(at, 40, wa, wb); Application.DoEvents();
+        int grew = P("Layers").Height - h0, shrank = b0 - below.Height;
+        Check(grew > 0 && Math.Abs(grew - shrank) <= 2 && below.Height >= below.MinContent.Height + WorkspacePanel.HeaderHeight - 1,
+            $"dragging a divider grows one panel and shrinks the next open one, never below its minimum (+{grew} / -{shrank})");
+        col.Extent = 360; Check(col.Width == 360, "a dock column's width can be dragged");
+
+        var tl = docks.Column(DockSide.Right).PointToScreen(new Point(10, 5));
+        Check(docks.TargetAt(tl) is { side: DockSide.Right, index: 0 }, "dropping on the top of the right column docks there, first");
+        var host = docks.Column(DockSide.Bottom).Parent!;
+        Check(docks.TargetAt(host.PointToScreen(new Point(10, 300))) is { side: DockSide.Left }, "dropping near the empty left edge docks on the left");
+        Check(docks.TargetAt(host.PointToScreen(new Point(host.Width / 2, 300))) == null, "dropping over the middle of the canvas leaves the panel floating");
+
+        docks.Hide(P("Library")); Check(P("Library").IsHidden && !P("Library").Visible, "a panel can be closed");
+        docks.Show(P("Library")); Check(P("Library").Column != null, "and shown again (Window menu)");
+
+        Shot("custom");
+        var custom = docks.Capture();
+        form.TestSaveWorkspace("Painting");
+        form.TestResetWorkspace(); Application.DoEvents();
+        Check(docks.Panels.All(p => p.Bounds == originalBounds[p.Name] && ReferenceEquals(p.Content, contents[p.Name]) && !p.Content.IsDisposed),
+            "reset to default restores every panel's original place and size, keeping its controls");
+        form.TestLoadWorkspace("Painting"); Application.DoEvents();
+        var back = docks.Capture();
+        Check(back.Panels.All(kv => custom.Panels[kv.Key].Where == kv.Value.Where && custom.Panels[kv.Key].Index == kv.Value.Index
+            && custom.Panels[kv.Key].Collapsed == kv.Value.Collapsed) && back.RightWidth == custom.RightWidth,
+            "a saved layout comes back exactly: sides, order, folded panels, column widths");
+        Check(Theme.WorkspaceNames.Contains("Painting"), "saved layouts are listed by name");
+        form.TestDeleteWorkspace("Painting"); Check(!Theme.WorkspaceNames.Contains("Painting"), "a saved layout can be deleted");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(custom);
+        var copy = System.Text.Json.JsonSerializer.Deserialize<WorkspaceLayout>(json)!;
+        Check(copy.Panels.Count == 8 && copy.Panels["Timeline"].Where == DockSide.Right, "layouts survive being written to and read from the settings file");
+        var odd = new WorkspaceLayout { RightWidth = -5 }; odd.Panels["Nope"] = new PanelState { Where = DockSide.Left };
+        docks.Apply(odd); Application.DoEvents();
+        Check(docks.Panels.All(p => p.Column != null) && docks.Column(DockSide.Right).Width >= 120, "a layout missing panels or with bad sizes falls back to defaults");
+
+        form.TestResetWorkspace();
+        form.TestToggleAllPanels(); Check(docks.Panels.All(p => p.IsHidden), "F4 hides every panel");
+        form.TestToggleAllPanels(); Check(docks.Panels.All(p => !p.IsHidden) && docks.Capture().Panels["Layers"].Where == DockSide.Right, "F4 again brings them all back");
+        form.TestResetWorkspace(); Application.DoEvents();
+    }
+
     public static int Run()
     {
         int fails = 0;
@@ -44,21 +123,7 @@ public static class WorkspaceTest
         using (var render = form.TestDocument.RenderFrame(0))
             Check(form.TestDocument.Layers.Count == 1 && render.GetPixel(0, 0).A == 0 && render.GetPixel(5, 5).ToArgb() == Color.Lime.ToArgb(), "transparent removes the background and keeps artwork");
 
-        var originalBounds = form.TestWorkspacePanels.ToDictionary(p => p, p => p.Bounds);
-        foreach (var pane in form.TestWorkspacePanels)
-        {
-            var content = pane.Content;
-            var dock = pane.Dock;
-            pane.Float(); Application.DoEvents();
-            Check(pane.FloatingWindow?.Owner == form && !content.IsDisposed, $"{pane.Name} floats with live original controls");
-            pane.FloatingWindow!.Close(); Application.DoEvents();
-            Check(pane.FloatingWindow == null && pane.Dock == dock && ReferenceEquals(content.Parent, pane), $"closing {pane.Name} returns it to its dock");
-            if (dock != DockStyle.Bottom) pane.DockTo(dock == DockStyle.Left ? DockStyle.Right : DockStyle.Left);
-            pane.Float();
-        }
-        form.TestResetWorkspace(); Application.DoEvents();
-        Check(form.TestWorkspacePanels.All(p => p.FloatingWindow == null && !p.Content.IsDisposed), "reset returns every floating panel without disposal");
-        Check(form.TestWorkspacePanels.All(p => p.Bounds == originalBounds[p]), "reset restores the original panel positions and docking order");
+        WorkspaceChecks(form, Check);
 
         void Fixture()
         {

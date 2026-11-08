@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — movable workspace, saved layouts
+
+- The Inspector is now separate panels: Layers, Objects, Effects, History, Library and Properties, alongside Tools and Timeline (8 panels).
+- Drag any panel by its title to dock it on the left, right or bottom: a green highlight shows where it will land. Let go over the canvas to leave it floating. Panels on one side stack with dividers you can drag; drag a side's inner edge to make it wider. Click the arrow (or double-click the title) to fold a panel up, Fireworks style.
+- Window menu: show or hide each panel (Fireworks keys: F2 Layers, Shift+F2 Timeline, Ctrl+F2 Tools, Ctrl+F3 Properties, Shift+F10 History, F11 Library; F4 hides or shows all).
+- Workspace layouts: Window > Workspace layouts > Save current layout, pick a saved one to switch, Delete layout, Reset to default. Flint reopens with the layout you had when you closed it. Layouts are kept in your Flint settings file, not in projects.
+
 ## Unreleased — brush blend modes, Brush Settings, previews, more blend modes
 
 - Brush preset list shows a sample stroke for each brush; Size, Hardness, Opacity and Flow have sliders beside their numbers (size slider is logarithmic).

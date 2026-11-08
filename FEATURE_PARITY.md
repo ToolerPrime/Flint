@@ -16,7 +16,7 @@ with audio. New rectangles/ellipses and text retain editable source properties,
 and Object (Q) selects objects and nested groups. Bitmap layer masks, live effects, guides,
 export preview and movable workspace groups also exist. It is not a complete
 Fireworks replacement: pen/node editing, object distribution,
-linked symbols, advanced Auto Shapes and saved workspace layouts remain missing.
+linked symbols and advanced Auto Shapes remain missing.
 
 **Testing caveat:** every "Working" below is verified by automated tests that
 drive the real code headless, plus rendered screenshots of the real window.
@@ -195,6 +195,6 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Exact pixels everywhere | Working | Every alpha level through every path, checked against PIL |
 | Exports off the UI thread | Working | |
 | Memory indicator | Working | Status bar |
-| Dark theme, docking, saved workspaces | Partial | Dark/light theme and Tools/Inspector/Timeline float/dock/reset; positions are session-only |
+| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels (Tools, Layers, Objects, Effects, History, Library, Properties, Timeline) dock left/right/bottom by dragging, stack with dividers, fold up, float, hide (Window menu, F2 etc., F4 all); named workspace layouts saved; last layout restored on start |
 
 Productivity update: Image includes fit/trim/clip and resize quality commands for animation content. Group paths use format 10. See the workspace research/productivity-integration.md for verified Fireworks shortcut provenance and Flint extensions.

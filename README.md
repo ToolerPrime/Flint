@@ -70,10 +70,12 @@ Flint uses Fireworks 8's default shortcuts ("Macromedia Standard").
 | Rulers, show / lock / snap guides | Ctrl+Alt+R, Ctrl+; / Ctrl+Alt+; / Ctrl+Shift+; |
 | Previous / next frame, play | Page Up / Page Down, Ctrl+Alt+P |
 | Image size and quality (Flint) | Ctrl+Alt+I |
+| Show / hide Layers, Timeline, Tools, Properties, History, Library | F2, Shift+F2, Ctrl+F2, Ctrl+F3, Shift+F10, F11 |
+| Hide / show all panels | F4 |
 
 Not available yet, because Flint does not have these features: pen, knife,
 blur, slice and hotspot tools; text style keys; panel keys (F2 and so on);
-hide panels (Tab/F4); distribute; Paste Inside (Ctrl+Shift+V pastes frames).
+distribute; Paste Inside (Ctrl+Shift+V pastes frames).
 
 See [the full shortcut and behavior notes](local-team/research/productivity-integration.md).
 Fit retains off-canvas sources; explicit clipping removes them and rasterizes

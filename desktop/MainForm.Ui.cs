@@ -219,9 +219,9 @@ public sealed partial class MainForm
 
     // ---------- right: tabs + Properties ----------
 
-    private Panel BuildSidePanel()
+    /// <summary>The panels that used to share the Inspector: each is now its own movable panel.</summary>
+    private List<(string name, Control content, Size min)> BuildInspectorPanels()
     {
-        var side = new Panel { Dock = DockStyle.Right, Width = 282, Padding = new Padding(6) };
 
         var gExport = Group("Export settings", 150, true, "props.export");
         gExport.Controls.Add(Lbl("GIF colours", 8, 18, 72));
@@ -337,11 +337,6 @@ public sealed partial class MainForm
         gLayers.Controls.Add(_layers);
         gLayers.Controls.Add(layerBar);
 
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill, Orientation = Orientation.Horizontal,
-            SplitterWidth = 5, FixedPanel = FixedPanel.None,
-        };
         // Properties: the loose groups, now collapsible, in their own scroll area.
         var settings = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         foreach (var g in new[] { gExport, gKey, gCanvas, gTrans })
@@ -349,14 +344,8 @@ public sealed partial class MainForm
             g.Collapsed = Theme.IsCollapsed(g.PersistKey!, g != gTrans && g != gCanvas);
             settings.Controls.Add(g);
         }
-        var props = new Label { Text = "PROPERTIES", Dock = DockStyle.Top, Height = 22, Tag = "muted", TextAlign = ContentAlignment.BottomLeft,
-            Font = new Font(Font.FontFamily, 7.5f, FontStyle.Bold) };
-        settings.Controls.Add(props);
 
-        var tabs = new FlatTabs { Dock = DockStyle.Fill };
-        var layersTab = new TabPage("Layers");
-        layersTab.Controls.Add(gLayers);
-        var historyTab = new TabPage("History");
+        var historyPanel = new Panel { Padding = new Padding(4) };
         _history = new ListBox
         {
             Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 20,
@@ -365,25 +354,27 @@ public sealed partial class MainForm
         _history.DrawItem += DrawHistoryItem;
         _undo.Pushed += () => { if (!_historyBusy) RefreshHistory(); };
         _history.SelectedIndexChanged += (_, _) => { if (!_historyBusy) JumpToHistory(_history.SelectedIndex); };
-        historyTab.Controls.Add(_history);
-        tabs.Add(layersTab, "duplicate");
-        tabs.Add(BuildObjectsTab(), "rect");
-        tabs.Add(historyTab, "history");
-        tabs.Add(BuildLibraryTab(), "library");
-        tabs.Add(BuildEffectsTab(), "effects");
-        split.Panel1.Controls.Add(tabs);
-        split.Panel2.Controls.Add(settings);
-        split.Panel1MinSize = 150;
-        split.Panel2MinSize = 120;
-        side.Controls.Add(split);
-        side.Resize += (_, _) =>
+        historyPanel.Controls.Add(_history);
+        var layersPanel = new Panel { Padding = new Padding(4, 0, 4, 0) };
+        layersPanel.Controls.Add(gLayers);
+        settings.Padding = new Padding(4, 0, 4, 0);
+        return new()
         {
-            int want = Math.Max(split.Panel1MinSize, side.ClientSize.Height * 2 / 5);
-            if (split.Height > want + split.Panel2MinSize && split.SplitterDistance != want && !_splitPlaced)
-                split.SplitterDistance = want;
+            ("Layers", layersPanel, new Size(220, 120)),
+            ("Objects", FromTab(BuildObjectsTab()), new Size(200, 90)),
+            ("Effects", FromTab(BuildEffectsTab()), new Size(200, 90)),
+            ("History", historyPanel, new Size(160, 80)),
+            ("Library", FromTab(BuildLibraryTab()), new Size(200, 90)),
+            ("Properties", settings, new Size(230, 120)),
         };
-        split.SplitterMoved += (_, _) => _splitPlaced = side.Visible && split.Focused;
-        return side;
+    }
+
+    /// <summary>Moves a tab page's controls (in order, so docking is unchanged) onto a plain panel.</summary>
+    private static Panel FromTab(TabPage page)
+    {
+        var p = new Panel { Padding = new Padding(4, 0, 4, 0) };
+        while (page.Controls.Count > 0) p.Controls.Add(page.Controls[0]);
+        return p;
     }
 
     // ---------- bottom: one icon bar + timeline ----------

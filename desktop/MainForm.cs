@@ -91,7 +91,6 @@ public sealed partial class MainForm : ThemedForm
                      _filled = null!, _sharedBox = null!;
     private Color _key = Color.Magenta;
     private bool _syncing;
-    private bool _splitPlaced;   // once the user drags the divider, leave it there
 
     private int DocW => _doc.Width;
     private int DocH => _doc.Height;
@@ -238,15 +237,12 @@ public sealed partial class MainForm : ThemedForm
         // ---------- toolbox ----------
         var box = BuildToolbox();
         var optionsBar = BuildOptionsBar();
-        var side = BuildSidePanel();
+        var inspector = BuildInspectorPanels();
         var bottom = _bottom = BuildTransport();
 
         _workspace = new Panel { Dock = DockStyle.Fill };
         _workspace.Controls.Add(_canvas);
-        _workspacePanels.Add(new WorkspacePanel(this, _workspace, "Tools", box, DockStyle.Left, new Size(100, 500)));
-        _workspacePanels.Add(new WorkspacePanel(this, _workspace, "Inspector", side, DockStyle.Right, new Size(294, 500)));
-        _timelinePane = new WorkspacePanel(this, _workspace, "Timeline", bottom, DockStyle.Bottom, new Size(1100, 260));
-        _workspacePanels.Add(_timelinePane);
+        BuildDocking(box, inspector, bottom);
         Controls.Add(_workspace);
         Controls.Add(optionsBar);
         Controls.Add(tools);
@@ -1422,8 +1418,9 @@ public sealed partial class MainForm : ThemedForm
         _timeline.InvalidateWaveforms();
         _timeline.Bind(_doc);
         int want = Math.Clamp(_timeline.PreferredHeight + 70, 200, 380);
-        if (_timelinePane != null && !_timelinePane.UserSized && _timelinePane.Dock == DockStyle.Bottom)
-            _timelinePane.Height = want + 25;
+        if (_docks != null && !_docks.Column(DockSide.Bottom).UserSized && _timelinePane?.Column?.Side == DockSide.Bottom
+            && _docks.Column(DockSide.Bottom).Items.Count == 1)
+            _docks.Column(DockSide.Bottom).Height = want + WorkspacePanel.HeaderHeight + DockColumn.Bar;
     }
 
     private int[] Delays() => _doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
