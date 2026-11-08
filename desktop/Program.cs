@@ -111,6 +111,13 @@ internal static class Program
             return MemTest.Run(args.Length >= 2 ? args[1] : "memtest-out");
         }
 
+        if (args.Length >= 1 && args[0] == "--colourtest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return ColourPickerTest.Run();
+        }
+
         if (args.Length >= 1 && args[0] == "--soaktest")
         {
             AttachConsole(-1);

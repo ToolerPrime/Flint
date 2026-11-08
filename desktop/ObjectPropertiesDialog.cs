@@ -62,8 +62,7 @@ public sealed class ObjectPropertiesDialog : ThemedForm
             var colour = new Button { Left = 98, Top = bottom, Width = 86, Height = 26, Text = "Choose…" };
             colour.Click += (_, _) =>
             {
-                using var dialog = new ColorDialog { Color = Color.FromArgb(unchecked((int)_colour)), FullOpen = true };
-                if (dialog.ShowDialog(this) == DialogResult.OK) _colour = Surface.Pack(dialog.Color);
+                if (ColourPickerDialog.Pick(this, Color.FromArgb(unchecked((int)_colour)), "Object colour") is { } c) _colour = Surface.Pack(c);
             };
             Controls.Add(colour); bottom += 38;
         }

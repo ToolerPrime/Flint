@@ -265,10 +265,9 @@ public sealed partial class MainForm : ThemedForm
         };
         p.Click += (_, _) =>
         {
-            using var dlg = new ColorDialog { Color = get(), FullOpen = true };
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
-            set(dlg.Color);
-            p.BackColor = dlg.Color;
+            if (ColourPickerDialog.Pick(this, get()) is not { } c) return;
+            set(c);
+            p.BackColor = c;
         };
         return p;
     }

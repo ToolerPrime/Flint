@@ -34,6 +34,8 @@ if ($LASTEXITCODE -ne 0) { throw "audiotest failed" }
 Write-Host "`n--- large document memory, undo integrity ---"
 & $exe --memtest "$out\mem" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "memtest failed" }
+& $exe --colourtest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "colourtest failed" }
 & $exe --soaktest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "soaktest failed" }
 

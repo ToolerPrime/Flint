@@ -233,8 +233,7 @@ public sealed class EffectDialog : ThemedForm
             var al = new NumericUpDown { Left = 140, Top = y, Width = 90, Minimum = 0, Maximum = 100, Value = (int)Math.Round((v >> 24) * 100 / 255.0), TextAlign = HorizontalAlignment.Right };
             sw.Click += (_, _) =>
             {
-                using var cd = new ColorDialog { Color = sw.BackColor, FullOpen = true };
-                if (cd.ShowDialog(this) == DialogResult.OK) { sw.BackColor = cd.Color; Kick(); }
+                if (ColourPickerDialog.Pick(this, sw.BackColor, "Effect colour") is { } c) { sw.BackColor = c; Kick(); }
             };
             al.ValueChanged += (_, _) => Kick();
             _cols[c.Key] = (sw, al);

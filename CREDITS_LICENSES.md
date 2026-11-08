@@ -22,6 +22,28 @@ Windows Media Foundation) AAC, WMA and FLAC. Version 2.2.1, MIT licence.
 Bundled inside the self-contained executable.
 https://github.com/naudio/NAudio
 
+### PhotoCraft — ArtCraft Team and the PhotoCraft contributors
+
+`desktop/ColourPickerDialog.cs` translates the colour picker's layout and
+colour maths from PhotoCraft (https://github.com/storytold/photocraft),
+`crates/ui-egui/src/dialogs/color_picker_ui.rs` and
+`crates/color/src/convert.rs`. Copyright (c) 2026 ArtCraft Team and the
+PhotoCraft contributors. Used under the MIT licence (PhotoCraft is MIT or
+Apache-2.0 at the user's option). The ArtCraft name and logos are trademarks
+of the ArtCraft Team and are not used in Flint.
+
+The MIT licence requires this notice to be kept with the ported code:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions: The above copyright
+> notice and this permission notice shall be included in all copies or
+> substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
+> WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
 ### Everything else
 
 Written for Flint: the GIF, APNG and animated-WebP container writers, the

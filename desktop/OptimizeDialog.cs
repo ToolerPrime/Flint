@@ -472,10 +472,9 @@ internal sealed class OptimizeDialog : Form
 
     private void PickMatte()
     {
-        using var dlg = new ColorDialog { Color = _src.Matte, FullOpen = true };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        _src.Matte = dlg.Color;
-        _matte.BackColor = dlg.Color;
+        if (ColourPickerDialog.Pick(this, _src.Matte, "Matte colour") is not { } c) return;
+        _src.Matte = c;
+        _matte.BackColor = c;
         foreach (var p in _panes) if (p.Settings.Format == OptFormat.Jpeg) p.Reencode();
     }
 

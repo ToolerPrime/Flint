@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — new colour picker
+
+- New Photoshop-style colour picker in place of the Windows colour box (paint colours, effect colours, object colours, GIF matte): a colour square with a channel slider (H, S, B, R, G or B), new/current swatches (click current to go back), HSB, RGB and hex boxes, a web-colour warning, and "Pick from screen". Design and maths translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.
+- Added --colourtest.
+
 ## Unreleased — Fireworks 8 keyboard shortcuts
 
 - Keyboard shortcuts now follow Fireworks 8's default set (Macromedia Standard). Tool letters match Fireworks, and pressing a letter again switches to the next tool in its group (V, M, U, G). Changed: Import Ctrl+R, Export Ctrl+Shift+R, Export preview Ctrl+Shift+X, numeric transform Ctrl+Shift+T, fit canvas Ctrl+Alt+F, trim canvas Ctrl+Alt+T, ungroup Ctrl+Shift+G, merge down Ctrl+E.
