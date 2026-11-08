@@ -6,6 +6,7 @@
 - New: clone (Ctrl+Shift+D), duplicate (Ctrl+Alt+D), clone-and-nudge (Alt+arrows), align (Ctrl+Alt+1–6), arrange (Ctrl+Up/Down, with Shift for front/back), paste attributes, rotate 90°, zoom levels (Ctrl+1–8), guide toggles, Page Up/Down frames, play (Ctrl+Alt+P), D and X colours, Ctrl+Shift+Z redo, Backspace delete, Ctrl+Q exit.
 - Quick 50%/200% object scaling has no shortcut now, because Fireworks uses those keys for alignment.
 - Flint opens a file given on launch, so double-clicking or "Open with" works for Fireworks PNGs.
+- Added --soaktest: 450 rounds of everyday editing (shapes, grouping, effects, strokes, undo/redo, opening a Fireworks PNG every 5th round). Memory and Windows GDI/USER handles stay flat after warm-up, so long sessions do not run out of memory the way Fireworks 8 does.
 
 ## Unreleased — Fireworks productivity commands
 

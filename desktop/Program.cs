@@ -111,6 +111,12 @@ internal static class Program
             return MemTest.Run(args.Length >= 2 ? args[1] : "memtest-out");
         }
 
+        if (args.Length >= 1 && args[0] == "--soaktest")
+        {
+            AttachConsole(-1);
+            return SoakTest.Run(args.Length >= 2 && int.TryParse(args[1], out int n) ? n : 450);
+        }
+
         if (args.Length >= 1 && args[0] == "--audiotest")
         {
             AttachConsole(-1);

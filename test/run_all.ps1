@@ -1,4 +1,4 @@
-# Full test suite. Run from the test folder.
+﻿# Full test suite. Run from the test folder.
 $ErrorActionPreference = "Stop"
 $exe = "..\desktop\bin\Debug\net8.0-windows\Flint.exe"
 $out = "out-cs"
@@ -34,6 +34,8 @@ if ($LASTEXITCODE -ne 0) { throw "audiotest failed" }
 Write-Host "`n--- large document memory, undo integrity ---"
 & $exe --memtest "$out\mem" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "memtest failed" }
+& $exe --soaktest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "soaktest failed" }
 
 Write-Host "`n--- pixel fidelity, every alpha level, checked with PIL ---"
 & $exe --fidelitytest "$out\fid" | Out-Host
