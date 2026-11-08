@@ -11,7 +11,7 @@
  */
 namespace Flint;
 
-public enum EffectKind { DropShadow, InnerShadow, Glow, InnerGlow, Bevel, GaussianBlur, MotionBlur, HueSat, ColorFill, BrightContrast }
+public enum EffectKind { DropShadow, InnerShadow, Glow, InnerGlow, Bevel, GaussianBlur, MotionBlur, HueSat, ColorFill, BrightContrast, Stroke, Satin, GradientOverlay }
 
 public sealed class ObjectEffect
 {
@@ -66,6 +66,7 @@ public static class ObjectEffects
         EffectKind.Bevel => e.Get("type") == 0 ? 0 : (int)Math.Ceiling(e.Get("width")) + 3,
         EffectKind.GaussianBlur => 3 * RbGauss(e.Get("radius")) + 1,
         EffectKind.MotionBlur => (int)Math.Ceiling(e.Get("dist") / 2) + 1,
+        EffectKind.Stroke => e.Get("position") == 1 ? 0 : (int)Math.Ceiling(e.Get("size")) + 2,
         _ => 0,
     };
 
@@ -92,6 +93,9 @@ public static class ObjectEffects
                 return e.Get("colorize") != 0 ? Adjust.Colourise(p, e.Get("hue"), e.Get("sat")) : Adjust.HueSatLight(p, e.Get("hue"), e.Get("sat"), e.Get("light"));
             case EffectKind.BrightContrast: return Adjust.BrightnessContrast(p, e.Get("bright"), e.Get("contrast"));
             case EffectKind.ColorFill: return ColorFill(p, e.Colour("colour"), e.Get("opacity", 100));
+            case EffectKind.Stroke: return Stroke(e, p, w, h);
+            case EffectKind.Satin: return Satin(e, p, w, h);
+            case EffectKind.GradientOverlay: return GradientOverlay(e, p, w, h);
         }
         return p;
     }
@@ -303,6 +307,79 @@ public static class ObjectEffects
                 int o = (y * w + x) * 4;
                 d[o] = (byte)Math.Round(sb / sa); d[o + 1] = (byte)Math.Round(sg / sa); d[o + 2] = (byte)Math.Round(sr / sa);
                 d[o + 3] = (byte)Math.Min(255, (int)Math.Round(sa / n));
+            }
+        return d;
+    }
+
+    /// <summary>Photoshop's Stroke: an outline of the shape, outside (0), inside (1) or centred (2).</summary>
+    private static byte[] Stroke(ObjectEffect e, byte[] p, int w, int h)
+    {
+        double size = Math.Max(0, e.Get("size", 3)), k = Math.Clamp(e.Get("opacity", 100) / 100, 0, 1);
+        int pos = (int)e.Get("position");
+        if (size <= 0) return p;
+        var a = Alpha(p);
+        var grown = pos == 1 ? a : Dilate(a, w, h, pos == 2 ? size / 2 : size);
+        var shrunk = pos == 0 ? a : Erode(a, w, h, pos == 2 ? size / 2 : size);
+        var outer = new byte[a.Length]; var inner = new byte[a.Length];
+        for (int i = 0; i < a.Length; i++) { outer[i] = (byte)Math.Max(0, grown[i] - a[i]); inner[i] = (byte)Math.Max(0, a[i] - shrunk[i]); }
+        uint c = e.Colour("colour");
+        var d = Over(Tint(outer, c, k), p, w, h);    // the outside part sits under the shape
+        return Over(d, Tint(inner, c, k), w, h);     // the inside part sits on top of it
+    }
+
+    /// <summary>Photoshop's Satin: two offset, blurred copies of the shape's alpha, their difference shading the inside.</summary>
+    private static byte[] Satin(ObjectEffect e, byte[] p, int w, int h)
+    {
+        var a = Alpha(p);
+        var (dx, dy) = Offset(e.Get("dist", 11), e.Get("angle", 19));
+        int A(int x, int y) => x < 0 || y < 0 || x >= w || y >= h ? 0 : a[y * w + x];
+        var diff = new byte[a.Length];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) diff[y * w + x] = (byte)Math.Abs(A(x - dx, y - dy) - A(x + dx, y + dy));
+        diff = BlurPlane(diff, w, h, Rb(e.Get("size", 14)));
+        bool invert = e.Get("invert") != 0;
+        double k = Math.Clamp(e.Get("opacity", 50) / 100, 0, 1);
+        uint c = e.Colour("colour");
+        var d = (byte[])p.Clone();
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] == 0) continue;
+            int v = invert ? 255 - diff[i] : diff[i];
+            int sa = (int)Math.Round(v * k * (c >> 24) / 255.0 * a[i] / 255.0);
+            if (sa <= 0) continue;
+            int alpha = d[i * 4 + 3];
+            Blending.Pixel(d, i * 4, (byte)(c >> 16), (byte)(c >> 8), (byte)c, sa, BlendMode.Multiply);
+            d[i * 4 + 3] = (byte)alpha;   // shading only: the shape's own transparency stays
+        }
+        return d;
+    }
+
+    /// <summary>Photoshop's Gradient Overlay: colour 1 to colour 2 across the shape, linear (0) or radial (1).</summary>
+    private static byte[] GradientOverlay(ObjectEffect e, byte[] p, int w, int h)
+    {
+        uint c1 = e.Colour("colour1"), c2 = e.Colour("colour2");
+        double k = Math.Clamp(e.Get("opacity", 100) / 100, 0, 1), scale = Math.Max(0.1, e.Get("scale", 100) / 100);
+        bool radial = e.Get("style") == 1, reverse = e.Get("reverse") != 0;
+        double ang = e.Get("angle", 90) * Math.PI / 180, ux = Math.Cos(ang), uy = -Math.Sin(ang);
+        int x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) if (p[(y * w + x) * 4 + 3] > 0) { x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y); }
+        if (x1 < 0) return p;
+        double cx = (x0 + x1 + 1) / 2.0, cy = (y0 + y1 + 1) / 2.0, hw = (x1 - x0 + 1) / 2.0, hh = (y1 - y0 + 1) / 2.0;
+        double half = (Math.Abs(ux) * hw + Math.Abs(uy) * hh) * scale, rad = Math.Sqrt(hw * hw + hh * hh) * scale;
+        var d = (byte[])p.Clone();
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+            {
+                int o = (y * w + x) * 4;
+                if (d[o + 3] == 0) continue;
+                double px = x + 0.5 - cx, py = y + 0.5 - cy;
+                double t = radial ? Math.Sqrt(px * px + py * py) / Math.Max(rad, 1e-6) : ((px * ux + py * uy) / Math.Max(half, 1e-6) + 1) / 2;
+                t = Math.Clamp(reverse ? 1 - t : t, 0, 1);
+                double Ch(int s) => ((c1 >> s) & 255) + ((((c2 >> s) & 255)) - (double)((c1 >> s) & 255)) * t;
+                double ca = Ch(24) / 255 * k;
+                d[o] = (byte)Math.Round(d[o] + (Ch(0) - d[o]) * ca);
+                d[o + 1] = (byte)Math.Round(d[o + 1] + (Ch(8) - d[o + 1]) * ca);
+                d[o + 2] = (byte)Math.Round(d[o + 2] + (Ch(16) - d[o + 2]) * ca);
             }
         return d;
     }

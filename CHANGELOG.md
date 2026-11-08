@@ -7,6 +7,7 @@
 - Brush Settings window with a live sample stroke: spacing, angle, roundness, hard pixel edges; shape dynamics (size, angle, roundness jitter, angle follows the stroke); scattering (amount, both axes, count, count jitter); colour dynamics (Fg/Bg, hue, saturation, brightness jitter, per dab or per stroke); transfer (opacity and flow jitter); noise, wet edges, airbrush build-up while held still, smoothing. Cancel restores the brush.
 - New presets: Spatter, Stipple, Watercolour Wet Edges, Chalk, Confetti.
 - Blend modes now follow Photoshop's full list and order: added Dissolve, Linear Burn, Darker Color, Lighter Color, Vivid Light, Linear Light, Pin Light, Hard Mix and Divide (layers, objects and the brush). Saved by name, so older files still open.
+- New layer effects (Photoshop layer styles): Stroke (outside, inside or centred), Satin, and Gradient overlay (linear or radial, angle, scale, reverse). Pattern overlay is not included yet: Flint has no pattern library.
 - Translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.
 
 ## Unreleased — Brush tool

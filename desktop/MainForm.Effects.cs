@@ -48,6 +48,15 @@ public sealed partial class MainForm
             Array.Empty<FxCol>()),
         new("Colour fill", EffectKind.ColorFill, Array.Empty<(string, double)>(),
             new[] { new FxNum("opacity", "Opacity %", 0, 100, 100) }, new[] { new FxCol("colour", "Colour", 0xFFFF6A00) }),
+        new("Stroke", EffectKind.Stroke, Array.Empty<(string, double)>(),
+            new[] { new FxNum("size", "Size", 1, 100, 3), new FxNum("position", "Outside 0 / inside 1 / centre 2", 0, 2, 0), new FxNum("opacity", "Opacity %", 0, 100, 100) },
+            new[] { new FxCol("colour", "Colour", 0xFF000000) }),
+        new("Satin", EffectKind.Satin, Array.Empty<(string, double)>(),
+            new[] { new FxNum("dist", "Distance", 0, 100, 11), new FxNum("angle", "Angle °", 0, 360, 19), new FxNum("size", "Size", 0, 100, 14), new FxNum("opacity", "Opacity %", 0, 100, 50), new FxNum("invert", "Invert (0/1)", 0, 1, 0) },
+            new[] { new FxCol("colour", "Colour", 0xFF000000) }),
+        new("Gradient overlay", EffectKind.GradientOverlay, Array.Empty<(string, double)>(),
+            new[] { new FxNum("angle", "Angle °", 0, 360, 90), new FxNum("style", "Linear 0 / radial 1", 0, 1, 0), new FxNum("scale", "Scale %", 10, 150, 100), new FxNum("opacity", "Opacity %", 0, 100, 100), new FxNum("reverse", "Reverse (0/1)", 0, 1, 0) },
+            new[] { new FxCol("colour1", "Colour 1", 0xFF000000), new FxCol("colour2", "Colour 2", 0xFFFFFFFF) }),
     };
 
     private static FxDef DefOf(ObjectEffect e) =>

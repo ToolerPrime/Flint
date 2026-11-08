@@ -1,4 +1,4 @@
-/* The image-editor tools through the real form and its mouse handlers.
+﻿/* The image-editor tools through the real form and its mouse handlers.
  * Flint.exe --toolstest */
 namespace Flint;
 
@@ -260,6 +260,7 @@ public static partial class ToolsTest
         MaskChecks(form);
         GradientKindChecks(form);
         EffectsChecks(form);
+        LayerStyleChecks();
         MaskOpChecks(form);
         MaskReviewChecks(form);
 
