@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Brush tool
+
+- New Brush tool (B) with soft and hard round brushes, Photoshop style: size, hardness, opacity and flow in the options bar, plus presets (Hard Round, Soft Round, Hard Round Fine, Soft Round Large, Airbrush Soft, Calligraphy Flat, Hard Pencil). Opacity caps a whole stroke, so going over your own stroke never darkens past it; low flow builds up gently. The pixel Pencil stays, now on Y. Engine translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.
+- Added --brushtest (optionally `--brushtest sheet.png` draws a sample stroke for every preset).
+
 ## Unreleased — new colour picker
 
 - New Photoshop-style colour picker in place of the Windows colour box (paint colours, effect colours, object colours, GIF matte): a colour square with a channel slider (H, S, B, R, G or B), new/current swatches (click current to go back), HSB, RGB and hex boxes, a web-colour warning, and "Pick from screen". Design and maths translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.

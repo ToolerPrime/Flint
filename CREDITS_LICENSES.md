@@ -27,7 +27,10 @@ https://github.com/naudio/NAudio
 `desktop/ColourPickerDialog.cs` translates the colour picker's layout and
 colour maths from PhotoCraft (https://github.com/storytold/photocraft),
 `crates/ui-egui/src/dialogs/color_picker_ui.rs` and
-`crates/color/src/convert.rs`. Copyright (c) 2026 ArtCraft Team and the
+`crates/color/src/convert.rs`. `desktop/BrushEngine.cs` translates the round
+brush tip (hardness table and falloff), dab spacing, the opacity/flow build-up
+rule and the General presets from `crates/paint/src/` (`lib.rs`, `render.rs`,
+`dynamics.rs`, `presets.rs`). Copyright (c) 2026 ArtCraft Team and the
 PhotoCraft contributors. Used under the MIT licence (PhotoCraft is MIT or
 Apache-2.0 at the user's option). The ArtCraft name and logos are trademarks
 of the ArtCraft Team and are not used in Flint.

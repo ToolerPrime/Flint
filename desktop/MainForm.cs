@@ -514,6 +514,9 @@ public sealed partial class MainForm : ThemedForm
                 Draw.Dot(surface, p.X, p.Y, (int)_brush.Value, colour, _selection);
                 Commit(surface, raster);
                 break;
+            case Tool.Brush:
+                BrushDown(e, colour, raster);
+                break;
             case Tool.Fill:
                 int painted = Draw.Fill(surface, p.X, p.Y, colour, (int)_fillTol.Value, _selection);
                 Commit(surface, raster);
@@ -551,6 +554,8 @@ public sealed partial class MainForm : ThemedForm
         if (_strokeBase == null) return;
         var raster = ActiveRaster();
         uint colour = InkFor(e.Button);
+
+        if (_tool == Tool.Brush) { BrushMove(e, raster); return; }
 
         if (_tool is Tool.Pencil or Tool.Eraser)
         {
@@ -624,6 +629,7 @@ public sealed partial class MainForm : ThemedForm
         if (edit != null) { _undo.Push(edit); Touch(); }
         _recorder = null;
         _strokeBase = null;
+        _brushStroke = null; _brushOut = null;
         EndStrokeCaches();
         RebuildStrip();
         UpdateInfo(null);

@@ -17,7 +17,7 @@ public static class ToolIcons
     {
         // tools
         "move", "transform", "crop", "select-rect", "select-ellipse", "lasso", "wand",
-        "eyedropper", "pan", "pencil", "eraser", "fill", "gradient", "clone", "text",
+        "eyedropper", "pan", "pencil", "brush", "eraser", "fill", "gradient", "clone", "text",
         "line", "rect", "ellipse", "pivot", "hitbox",
         // file / edit toolbar
         "new", "open", "save", "import", "export", "undo", "redo",

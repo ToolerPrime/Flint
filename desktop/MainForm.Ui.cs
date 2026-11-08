@@ -86,7 +86,8 @@ public sealed partial class MainForm
             [Tool.Wand] = ("wand", "Wand", "Magic wand (W): click a colour"),
             [Tool.Eyedropper] = ("eyedropper", "Pick", "Eyedropper (I)"),
             [Tool.Pan] = ("pan", "Pan", "Pan (H)"),
-            [Tool.Pencil] = ("pencil", "Pencil", "Pencil (B, Y)"),
+            [Tool.Pencil] = ("pencil", "Pencil", "Pencil (Y): exact hard pixels"),
+            [Tool.Brush] = ("brush", "Brush", "Brush (B): soft or hard round brush. Pick a preset, size, hardness, opacity and flow above"),
             [Tool.Eraser] = ("eraser", "Eraser", "Eraser (E)"),
             [Tool.Fill] = ("fill", "Fill", "Paint bucket (G)"),
             [Tool.Gradient] = ("gradient", "Grad", "Gradient (G twice): drag"),
@@ -101,7 +102,7 @@ public sealed partial class MainForm
         var sections = new (string title, Tool[] tools)[]
         {
             ("Select", new[] { Tool.ObjectSelect, Tool.Move, Tool.Transform, Tool.Crop, Tool.Marquee, Tool.EllipseSelect, Tool.Lasso, Tool.Wand }),
-            ("Bitmap", new[] { Tool.Pencil, Tool.Eraser, Tool.Fill, Tool.Gradient, Tool.Clone, Tool.Eyedropper, Tool.Text }),
+            ("Bitmap", new[] { Tool.Pencil, Tool.Brush, Tool.Eraser, Tool.Fill, Tool.Gradient, Tool.Clone, Tool.Eyedropper, Tool.Text }),
             ("Vector", new[] { Tool.Line, Tool.Rectangle, Tool.Ellipse }),
             ("Web / Game", new[] { Tool.Pivot, Tool.Hitbox }),
             ("View", new[] { Tool.Pan }),
@@ -184,10 +185,13 @@ public sealed partial class MainForm
         _tips.SetToolTip(_filled, "Draw rectangles and ovals solid");
 
         flow.Controls.Add(Flow(_optTitle, 36, 4));
+        var brushOpts = BuildBrushOptions();
         var all = new Control[] { _optNone, lSize, _brush, _filled, _editableShapes, lTol, _fillTol, _contiguous, lRes, _resample, lGrad, _gradType };
+        all = all.Concat(brushOpts).ToArray();
         foreach (var c in all) flow.Controls.Add(Flow(c, 36));
         _optControls.AddRange(all);
         _toolOptions[Tool.Pencil] = new Control[] { lSize, _brush };
+        _toolOptions[Tool.Brush] = brushOpts;
         _toolOptions[Tool.Eraser] = _toolOptions[Tool.Pencil];
         _toolOptions[Tool.Line] = _toolOptions[Tool.Pencil];
         _toolOptions[Tool.Clone] = _toolOptions[Tool.Pencil];

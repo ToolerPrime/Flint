@@ -75,7 +75,8 @@ public sealed partial class MainForm
             Keys.M => Cycle(Tool.Marquee, Tool.EllipseSelect),
             Keys.L => Tool.Lasso,
             Keys.W => Tool.Wand,
-            Keys.B or Keys.Y => Tool.Pencil,                                           // Brush / Pencil
+            Keys.B => Tool.Brush,
+            Keys.Y => Tool.Pencil,
             Keys.E => Tool.Eraser,
             Keys.S => Tool.Clone,                                                      // Rubber Stamp
             Keys.N => Tool.Line,

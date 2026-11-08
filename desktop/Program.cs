@@ -111,6 +111,13 @@ internal static class Program
             return MemTest.Run(args.Length >= 2 ? args[1] : "memtest-out");
         }
 
+        if (args.Length >= 1 && args[0] == "--brushtest")
+        {
+            AttachConsole(-1);
+            if (args.Length >= 2) BrushTest.Sheet(args[1]);
+            return BrushTest.Run();
+        }
+
         if (args.Length >= 1 && args[0] == "--colourtest")
         {
             AttachConsole(-1);

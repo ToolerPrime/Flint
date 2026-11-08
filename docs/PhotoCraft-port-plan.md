@@ -51,7 +51,7 @@ Photoshop's brush system.
    Lab and CMYK fields only if cheap. Replace all 4 `ColorDialog` uses. Test:
    colour maths round trips (RGB to HSB and back, hex parsing), field position
    to colour for each mode.
-2. **Brush engine core**: round tip with size, hardness, angle, roundness,
+2. **Brush engine core** — done 2026-11-08 (`desktop/BrushEngine.cs`, `MainForm.Brush.cs`, `--brushtest`). Build-up over time (airbrush hold) left for phase 3. round tip with size, hardness, angle, roundness,
    spacing, opacity, flow, build-up; dabs placed along the stroke; one stroke
    buffer so opacity caps a stroke the way Photoshop does. Written as byte
    operations (Flint's exact-pixel rule: no GDI+ drawing on stored pixels).

@@ -103,6 +103,15 @@ case "select-ellipse":
                 g.DrawLine(p, 5f, 14f, 10f, 19f);
                 return true;
             }
+            case "brush":
+            {
+                // round brush: handle, ferrule and a soft tip
+                g.DrawLine(p, 21f, 3f, 12f, 12f);
+                g.DrawPolygon(p, new[] { new PointF(10f, 11f), new PointF(13f, 14f), new PointF(11f, 16f), new PointF(8f, 13f) });
+                g.DrawBezier(p, 8f, 14f, 4f, 15f, 5f, 20f, 3f, 21f);
+                g.DrawBezier(p, 3f, 21f, 8f, 21f, 11f, 19f, 10f, 16f);
+                return true;
+            }
             case "eraser":
             {
                 g.DrawPolygon(p, new[] { new PointF(3f, 14f), new PointF(13f, 4f), new PointF(21f, 12f), new PointF(12f, 21f), new PointF(10f, 21f) });
