@@ -119,7 +119,6 @@ public static class BrushTest
         Check(Dark(jitter) < Dark(plain), "size jitter makes dabs smaller at random");
         Check(Line(new BrushSettings(Size: 8, Spacing: 0.25f, SizeJitter: 1, Seed: 3), black).SequenceEqual(jitter), "the same seed paints exactly the same stroke");
         var scatter = Line(new BrushSettings(Size: 4, Spacing: 0.5f, Scatter: 4, Seed: 1), black);
-        bool off = false; for (int y = 0; y < H; y++) if (Math.Abs(y - 32) > 6 && scatter[(y * W + 30) * 4] < 128) off = true;
         bool offAny = false; for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (Math.Abs(y - 32) > 6 && scatter[(y * W + x) * 4] < 128) offAny = true;
         Check(offAny, "scatter throws dabs away from the line");
         var hue = Line(new BrushSettings(Size: 6, Spacing: 1, HueJitter: 1, Seed: 5), Surface.Pack(Color.Red));
