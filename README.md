@@ -22,7 +22,7 @@ dotnet run --project desktop
 Self-contained Windows x64 executable:
 
 ```powershell
-dotnet publish desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-desktop
+dotnet publish desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist-desktop
 ```
 
 ## Tests
