@@ -1,0 +1,98 @@
+[
+  {
+    "profile": "Fireworks.xml",
+    "command": "cmd_Transform",
+    "bindings": [
+      "4 84"
+    ],
+    "source_sha256": "b037da56b6a873fabe84751beb79ec4184046df5ec3d191302f81896f19cffe4"
+  },
+  {
+    "profile": "Fireworks.xml",
+    "command": "cmd_FlattenSelection",
+    "bindings": [
+      "7 90"
+    ],
+    "source_sha256": "b037da56b6a873fabe84751beb79ec4184046df5ec3d191302f81896f19cffe4"
+  },
+  {
+    "profile": "Fireworks.xml",
+    "command": "cmd_NumericTransform",
+    "bindings": [
+      "6 84"
+    ],
+    "source_sha256": "b037da56b6a873fabe84751beb79ec4184046df5ec3d191302f81896f19cffe4"
+  },
+  {
+    "profile": "Fireworks.xml",
+    "command": "cmd_Ungroup",
+    "bindings": [
+      "4 85"
+    ],
+    "source_sha256": "b037da56b6a873fabe84751beb79ec4184046df5ec3d191302f81896f19cffe4"
+  },
+  {
+    "profile": "Fireworks.xml",
+    "command": "cmd_Group",
+    "bindings": [
+      "4 71"
+    ],
+    "source_sha256": "b037da56b6a873fabe84751beb79ec4184046df5ec3d191302f81896f19cffe4"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_Ungroup",
+    "bindings": [
+      "6 71"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_FlattenSelection",
+    "bindings": [
+      "7 90"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_Transform",
+    "bindings": [
+      "4 84"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_FitCanvasSize",
+    "bindings": [
+      "5 70"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_Group",
+    "bindings": [
+      "4 71"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_TrimCanvasSize",
+    "bindings": [
+      "5 84"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  },
+  {
+    "profile": "Macromedia Standard.xml",
+    "command": "cmd_NumericTransform",
+    "bindings": [
+      "6 84"
+    ],
+    "source_sha256": "545a34df2a93c2fa90e7345ed900f511999e64f3e5ec65352e2e3bd8faadb831"
+  }
+]

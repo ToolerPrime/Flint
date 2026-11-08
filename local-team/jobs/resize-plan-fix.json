@@ -1,0 +1,6 @@
+{
+  "id": "resize-plan-fix",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Write complete corrected C# file only namespace Flint using System and System.Drawing. ResizePlan MaxSide=16384 MaxPixels=16777216L. Validate(width,height) rejects <1, >MaxSide or (long)width*height>MaxPixels with ArgumentOutOfRangeException. Scale(width,height,factor) rejects input width/height<=0, nonfinite factor, factor<=0. IMPORTANT Math.Round returns DOUBLE: use double w=Math.Max(1,Math.Round(width*factor,MidpointRounding.AwayFromZero)), h same. Reject !double.IsFinite(w/h) or w>MaxSide or h>MaxSide BEFORE ANY CAST. Then int resultW=(int)w, resultH=(int)h; Validate; return new Size. Do not assign Math.Round double directly to long. No markdown discussion or comments, file only.",
+  "max_tokens": 750
+}

@@ -1,0 +1,6 @@
+{
+  "id": "canvas-alignment",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Return one complete C# file only, namespace Flint. Define public enum CanvasAlign { Left, HorizontalCentre, Right, Top, VerticalCentre, Bottom }. public static class CanvasAlignment with public static Point Offset(Rectangle bounds,int canvasWidth,int canvasHeight,CanvasAlign edge). Using System and System.Drawing. Return integer dx/dy to align bounds to canvas. Left dx=-bounds.Left; Right dx=canvasWidth-bounds.Right; horizontal centre dx=Math.Round((canvasWidth-bounds.Width)/2.0-bounds.Left,MidpointRounding.AwayFromZero). Vertical analogous. Untouched axis=0. Validate canvas dimensions >=1 and bounds width/height>=1 or throw ArgumentOutOfRangeException. Invalid enum throw ArgumentOutOfRangeException. Negative positions are valid. No UI, no mutation, no other code, no explanation.",
+  "max_tokens": 900
+}

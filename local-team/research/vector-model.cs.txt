@@ -1,0 +1,32 @@
+/* Trace bitmap: pixels to vector shapes, and back to pixels at any matrix.
+ *
+ * Tracing finds each colour's pixels, takes their boundary along the pixel-edge
+ * grid (outer outlines and holes), and fills with the even-odd rule. With the
+ * default options this is lossless: rendering the art at the identity matrix
+ * gives back the exact original bytes. Smoothing then simplifies and rounds
+ * the outlines so the art scales and rotates crisply.
+ *
+ * VectorArt is immutable after Trace: undo snapshots and objects share it.
+ */
+using System.Globalization;
+using System.Text;
+
+namespace Flint;
+
+public readonly record struct VPt(double X, double Y);
+
+/// <summary>All the pixels of one colour: closed polygons filled even-odd.</summary>
+public sealed class VShape
+{
+    /// <summary>BGRA packed like Surface.Pack.</summary>
+    public uint Colour;
+    public List<List<VPt>> Contours = new();
+}
+
+/// <summary>Shapes in the source bitmap's pixel space; pixel corners are whole numbers.</summary>
+public sealed class VectorArt
+{
+    public int W, H;
+    public List<VShape> Shapes = new();
+    public int PointCount { get { int n = 0; foreach (var s in Shapes) foreach (var c in s.Contours) n += c.Count; return n; } }
+}

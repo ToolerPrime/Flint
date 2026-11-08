@@ -1,0 +1,10 @@
+{
+  "id": "shapes",
+  "model": "agent-qwen3.6-35b:latest",
+  "files": [
+    "research/vector-model.cs.txt"
+  ],
+  "max_input_chars": 48000,
+  "task": "Produce only one complete C# source file inside a code fence, not a plan. Create namespace Flint, public static class EditableShapeGeometry. Methods Rectangle(int width,int height,uint colour) and Ellipse(int width,int height,uint colour) return a new VectorArt using the supplied VShape and VPt model. Validate positive dimensions <=16384; throw ArgumentOutOfRangeException otherwise. Rectangle contours use pixel corners (0,0),(width,0),(width,height),(0,height). Ellipse uses a closed polygon of 128 evenly spaced vertices centred at width/2.0,height/2.0 with those half-axis radii, no duplicated closing vertex. W/H match requested dimensions. Each call creates independent lists. No bitmap, IO, dependencies, UI, or changes to existing classes. This is only a geometry foundation; it is not yet an editable UI feature.",
+  "max_tokens": 1600
+}

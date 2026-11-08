@@ -1,0 +1,6 @@
+{
+  "id": "masks",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Produce only one complete C# source file inside a code fence, not a plan. Namespace Flint; public static class MaskPixels; public static byte[] Apply(byte[] bgra, byte[] mask). Reject null inputs using ArgumentNullException, bgra length not divisible by 4 or mask length != bgra.Length/4 using ArgumentException. Return a cloned bgra array, never mutate either input. Set only alpha byte at pixel i to (sourceAlpha * mask[i] + 127)/255 using integer arithmetic; preserve B,G,R bytes even when alpha becomes zero. Permit empty inputs, return distinct output. No GDI, IO, dependencies, dimensions or UI. This is the pure mask primitive proposal, not a complete mask editing feature.",
+  "max_tokens": 1000
+}

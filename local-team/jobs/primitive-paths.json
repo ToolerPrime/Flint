@@ -1,0 +1,6 @@
+{
+  "id": "primitive-paths",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Write one complete C# file only, namespace Flint. public static class PrimitivePaths with public static VectorArt Build(bool ellipse, int width, int height, uint colour, bool filled, int stroke). Validate width/height in 1..16384 and stroke in 1..512 or throw ArgumentOutOfRangeException. Types already exist: public readonly record struct VPt(double X,double Y); public sealed class VShape { public uint Colour; public List<List<VPt>> Contours = new(); } public sealed class VectorArt { public int W,H; public List<VShape> Shapes = new(); }. Build NEW lists every call. Exactly one VShape in output. Rectangle outer pixel edges (0,0),(w,0),(w,h),(0,h). Ellipse outer contour: 256 equally spaced vertices, center(w/2.0,h/2.0), radii(w/2.0,h/2.0). If filled=false and width>2*stroke AND height>2*stroke, add an inner contour inset by stroke on each edge, using same shape formula, creating an even-odd ring. If stroke consumes either dimension use solid outer shape, not invalid geometry. No repeated closing vertex. No drawing APIs, no native Fireworks code, no rendering or mutation of inputs. Include required System/Collections.Generic usings. No extra methods besides Build plus private contour helper if useful.",
+  "max_tokens": 1800
+}

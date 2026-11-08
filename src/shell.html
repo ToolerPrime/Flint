@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flint</title>
+<style>
+  :root {
+    --bg: #15161a;
+    --panel: #1d1f25;
+    --line: #2c2f38;
+    --ink: #e4e6ec;
+    --dim: #8c92a3;
+    --accent: #ff7a45;
+    --accent-dim: #3a2219;
+    --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 13px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    flex: none;
+  }
+  .logo { font-weight: 650; letter-spacing: .02em; }
+  .logo b { color: var(--accent); }
+  .logo small { color: var(--dim); font-weight: 400; margin-left: 6px; }
+  #status { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+  #status.bad { color: var(--bad); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+
+  #stage {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    overflow: auto;
+    padding: 20px;
+    position: relative;
+  }
+  #stage.over { outline: 2px dashed var(--accent); outline-offset: -8px; }
+  #view {
+    image-rendering: pixelated;
+    background-color: #2a2d35;
+    background-image:
+      linear-gradient(45deg, #23262d 25%, transparent 25%, transparent 75%, #23262d 75%),
+      linear-gradient(45deg, #23262d 25%, transparent 25%, transparent 75%, #23262d 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+    box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.45);
+    max-width: none;
+  }
+  #empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    color: var(--dim);
+    pointer-events: none;
+  }
+  #empty strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 6px; }
+
+  aside {
+    width: 260px;
+    flex: none;
+    border-left: 1px solid var(--line);
+    background: var(--panel);
+    overflow-y: auto;
+    padding: 4px 0 20px;
+  }
+  .group { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .group h3 {
+    margin: 0 0 9px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--dim);
+    font-weight: 600;
+  }
+  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .row:last-child { margin-bottom: 0; }
+  label.inline { color: var(--dim); flex: none; }
+
+  button {
+    font: inherit;
+    color: var(--ink);
+    background: #262932;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 5px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { background: #2f333e; border-color: #3c414e; }
+  button:active { transform: translateY(1px); }
+  button.go { background: var(--accent-dim); border-color: #6b3b25; color: #ffd6c4; }
+  button.go:hover { background: #4a2b1f; }
+  button.wide { flex: 1; }
+
+  input[type=number], input[type=text] {
+    font: inherit;
+    color: var(--ink);
+    background: #14161b;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 6px;
+    width: 100%;
+    min-width: 0;
+  }
+  input[type=color] {
+    width: 34px; height: 28px; padding: 0;
+    background: none; border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+  }
+  input[type=checkbox] { accent-color: var(--accent); }
+  .check { display: flex; align-items: center; gap: 6px; color: var(--dim); cursor: pointer; }
+  .hint { color: var(--dim); font-size: 11.5px; margin: 6px 0 0; }
+
+  footer {
+    flex: none;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding: 8px 12px;
+  }
+  .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .bar .sep { width: 1px; height: 20px; background: var(--line); }
+  #info { color: var(--dim); font-variant-numeric: tabular-nums; margin-left: auto; }
+  #strip { display: flex; gap: 6px; overflow-x: auto; min-height: 72px; padding-bottom: 2px; }
+  .cell {
+    position: relative; padding: 3px; flex: none; line-height: 0;
+    background: #14161b; border: 1px solid var(--line); border-radius: 6px;
+  }
+  .cell.on { border-color: var(--accent); background: var(--accent-dim); }
+  .cell canvas {
+    image-rendering: pixelated; display: block; width: 48px; height: 48px;
+    background-color: #2a2d35;
+    background-image:
+      linear-gradient(45deg, #23262d 25%, transparent 25%, transparent 75%, #23262d 75%),
+      linear-gradient(45deg, #23262d 25%, transparent 25%, transparent 75%, #23262d 75%);
+    background-size: 10px 10px; background-position: 0 0, 5px 5px;
+  }
+  .cell span {
+    position: absolute; right: 3px; bottom: 2px;
+    font-size: 9.5px; line-height: 1.3; padding: 0 3px;
+    background: rgba(0,0,0,.72); border-radius: 3px; color: #cfd3dd;
+  }
+  /* Qualified with input: a bare .w60 loses to input[type=number] above. */
+  input.w60 { width: 60px; flex: none; }
+  input.w48 { width: 48px; flex: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo"><b>Flint</b><small>quick edits &amp; GIF animation</small></span>
+  <button id="pickFiles" onclick="document.getElementById('file').click()">Import files…</button>
+  <input type="file" id="file" accept="image/*" multiple hidden>
+  <button id="exportGif" class="go">Export GIF</button>
+  <button id="exportPng">Frame PNG</button>
+  <button id="exportSheet">Sheet PNG</button>
+  <span id="status"></span>
+</header>
+
+<main>
+  <div id="stage">
+    <canvas id="view" width="0" height="0"></canvas>
+    <div id="empty">
+      <strong>Drop images, a sprite sheet, or a GIF here</strong>
+      Animated GIFs split into frames. Sheets slice on the right.
+    </div>
+  </div>
+
+  <aside>
+    <div class="group">
+      <h3>Background removal</h3>
+      <div class="row">
+        <input type="color" id="keyColor" value="#000000">
+        <button id="pick">Pick</button>
+        <button id="key" class="wide">Remove</button>
+      </div>
+      <div class="row">
+        <label class="inline" for="tol">Tolerance</label>
+        <input type="number" id="tol" class="w60" value="16" min="0" max="255">
+        <label class="check"><input type="checkbox" id="applyAll" checked> all frames</label>
+      </div>
+      <p class="hint">Pick the flat colour behind the sprite, then Remove.</p>
+    </div>
+
+    <div class="group">
+      <h3>Transform</h3>
+      <div class="row">
+        <button id="flipH" class="wide">Flip H</button>
+        <button id="flipV" class="wide">Flip V</button>
+        <button id="trim" class="wide">Trim</button>
+      </div>
+      <div class="row">
+        <label class="inline" for="scaleBy">Scale</label>
+        <input type="number" id="scaleBy" class="w60" value="2" min="0.05" step="0.25">
+        <button id="scale">Apply</button>
+        <label class="check"><input type="checkbox" id="smooth"> smooth</label>
+      </div>
+      <div class="row">
+        <label class="inline">Canvas</label>
+        <input type="number" id="rw" class="w60" placeholder="w" min="1">
+        <input type="number" id="rh" class="w60" placeholder="h" min="1">
+        <button id="resize">Set</button>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="center" checked> centre on resize</label>
+      </div>
+      <p class="hint">Trim crops to the content of every frame at once, so the animation stays registered.</p>
+    </div>
+
+    <div class="group">
+      <h3>Slice sprite sheet</h3>
+      <div class="row">
+        <label class="inline" for="sc">Cols</label>
+        <input type="number" id="sc" class="w48" value="4" min="1">
+        <label class="inline" for="sr">Rows</label>
+        <input type="number" id="sr" class="w48" value="1" min="1">
+        <button id="slice">Slice</button>
+      </div>
+      <p class="hint">Cuts the current frame into a grid of frames.</p>
+    </div>
+
+    <div class="group">
+      <h3>GIF output</h3>
+      <div class="row">
+        <label class="inline" for="colors">Colours</label>
+        <input type="number" id="colors" class="w60" value="256" min="2" max="256">
+        <label class="check"><input type="checkbox" id="dither"> dither</label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="loop" checked> loop forever</label>
+      </div>
+      <div class="row">
+        <label class="inline" for="sheetCols">Sheet cols</label>
+        <input type="number" id="sheetCols" class="w60" placeholder="auto" min="1">
+      </div>
+      <p class="hint">One palette is built across every frame, which is what stops the colours shimmering between frames.</p>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div class="bar">
+    <button id="play">Play</button>
+    <div class="sep"></div>
+    <label class="inline" for="delay">Delay</label>
+    <input type="number" id="delay" class="w60" value="100" min="10" step="10">
+    <button id="delayAll">All</button>
+    <div class="sep"></div>
+    <button id="left">&larr;</button>
+    <button id="right">&rarr;</button>
+    <button id="dup">Duplicate</button>
+    <button id="del">Delete</button>
+    <button id="reverse">Reverse</button>
+    <div class="sep"></div>
+    <label class="check"><input type="checkbox" id="onion"> onion skin</label>
+    <div class="sep"></div>
+    <button id="zoomOut">&minus;</button>
+    <button id="zoomIn">+</button>
+    <span id="info">no document</span>
+  </div>
+  <div id="strip"></div>
+</footer>
+
+<script type="module">
+/*{{SCRIPT}}*/
+</script>
+</body>
+</html>

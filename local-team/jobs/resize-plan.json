@@ -1,0 +1,6 @@
+{
+  "id": "resize-plan",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Write one complete C# file only, namespace Flint, using System and System.Drawing. public static class ResizePlan. public const int MaxSide=16384; public const long MaxPixels=16777216. public static void Validate(int width,int height) throws ArgumentOutOfRangeException if either dimension <1 or >MaxSide or (long)width*height>MaxPixels. public static Size Scale(int width,int height,double factor): require positive input dimensions, finite factor>0; compute double w=Math.Round(width*factor,MidpointRounding.AwayFromZero), h similarly; clamp rounded minima to1; reject nonfinite/overlimit before any int cast; Validate result; return new Size. Must not allocate any pixel buffers or mutate state. No explanations or extra features.",
+  "max_tokens": 900
+}

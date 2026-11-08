@@ -1,0 +1,7 @@
+{
+  "id": "text",
+  "model": "agent-qwen3.6-35b:latest",
+  "files": ["C:/Users/Techn/Flint/desktop/Document.cs"],
+  "task": "Produce only one complete C# source file inside a code fence, not a plan. Define namespace Flint and public sealed record EditableTextSpec storing Text, FontFamily, FontSize, Bold, Italic, Colour (uint). Constructor must reject null Text, null/whitespace FontFamily, nonfinite or nonpositive FontSize and sizes >4096; preserve text and font name exactly. Properties must be get-only, constructor parameters named text,fontFamily,fontSize,bold,italic,colour. Provide WithText(string text) returning a new validated instance preserving other values. Use string/float/bool/uint only, no GDI, IO, dependencies, rendering or UI. This immutable source data is a foundation proposal; do not modify RasterObject or claim integration.",
+  "max_tokens": 1600
+}

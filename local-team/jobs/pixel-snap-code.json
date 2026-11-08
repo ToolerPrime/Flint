@@ -1,0 +1,6 @@
+{
+  "id": "pixel-snap-code",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Write one complete C# file only, no explanations. Namespace Flint; public static class PixelSnap with public static double Coordinate(double value, bool enabled). Requirements: throw ArgumentOutOfRangeException(nameof(value)) for NaN or either infinity; when enabled return Math.Round(value, MidpointRounding.AwayFromZero); when disabled return input unchanged including negative zero. Add XML summary. Use using System. Do not add other methods or dependencies. Do not claim execution.",
+  "max_tokens": 500
+}

@@ -1,0 +1,7 @@
+{
+  "id": "fireworks-feature-triage",
+  "model": "agent-qwen3.6-35b:latest",
+  "files": ["research/fireworks-candidate-labels.json", "research/flint-current-capabilities.txt"],
+  "task": "Return exactly six numbered lines recommending Fireworks feature increments for Flint, ordered by usefulness for editable graphics and effort. Each line: feature; concrete benefit; required prerequisite. Use supplied resource labels only as clues, never runtime proof. Do not suggest existing masks, effects, rulers, export previews, or basic docking as new features. Distinguish clone-and-nudge from clone stamp. Do not claim execution or propose copying proprietary source. Maximum 220 words and no introduction.",
+  "max_tokens": 650
+}

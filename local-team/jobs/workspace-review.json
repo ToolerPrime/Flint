@@ -1,0 +1,6 @@
+{
+  "id": "workspace-review",
+  "model": "agent-qwen3.6-35b:latest",
+  "task": "Return exactly five short regression test cases, no introduction, for these WinForms editor changes: a secondary paint-color swatch previously changed only the brush color and is being clearly separated from an explicit undoable canvas background fill; a pixel-snap toggle must round transform translation and axis-aligned resize edges to integers (including negative coordinates), with off preserving fractions and guide snapping taking priority; panels can float in an owned tool window, dock to either side, and reset without disposing their original controls. Focus on concrete failure cases. Do not claim execution or provide code.",
+  "max_tokens": 600
+}

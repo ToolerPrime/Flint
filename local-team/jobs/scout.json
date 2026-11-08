@@ -1,0 +1,11 @@
+{
+  "id": "scout",
+  "files": [
+    "C:/Users/Techn/Flint/FEATURE_PARITY.md",
+    "C:/Users/Techn/Flint/KNOWN_LIMITATIONS.md",
+    "C:/Users/Techn/Flint/ARCHITECTURE.md"
+  ],
+  "task": "User priority is editable shapes, then editable text, then masks and familiar Fireworks tools. Return a concise evidence report of contradictions among supplied docs with file names, then exactly three small ordered implementation slices for that priority. Each needs acceptance tests and likely source files. Do not claim source observations. Maximum 650 words.",
+  "max_tokens": 1800,
+  "model": "agent-qwen3.6-35b:latest"
+}

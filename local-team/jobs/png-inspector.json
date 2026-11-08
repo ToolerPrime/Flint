@@ -1,0 +1,5 @@
+{
+  "id": "png-inspector",
+  "task": "Return only a complete Python module in one python code fence. Implement inspect_png(data: bytes) -> list[dict] using stdlib struct and zlib. It must validate PNG signature; read big-endian chunk lengths with strict bounds including CRC; reject invalid ASCII letter chunk type or lowercase reserved third letter; require first chunk IHDR length 13; forbid duplicate IHDR; check every chunk CRC; require empty IEND; reject missing IEND or any trailing bytes after IEND. Raise ValueError for malformed data. Each dict has offset (start of length), type (ASCII string), length, private (bool, second character lowercase), crc_ok (True). This is a container inspector, not a PNG pixel decoder: do not enforce colour modes or inflate payloads. Add CLI accepting one or more paths and printing JSON objects with path, sha256 and chunks, with nonzero exit on any invalid file. Reads only; never writes inputs. Keep under 110 lines. Do not execute anything.",
+  "max_tokens": 2400
+}

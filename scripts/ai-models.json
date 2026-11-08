@@ -1,0 +1,94 @@
+{
+  "ollamaUrl": "http://127.0.0.1:11434",
+  "notes": "Model per worker role (Ollama models with a 64K context, created by scripts/Install-FlintModels.ps1). Benchmark 2026-11-07 on RX 9070 XT 16 GB (add a C# method + build): agent-qwen3.6-35b PASS 103-107 s and finished cleanly (MoE, ~61% GPU); agent-gemma4-26b and agent-glm4.7-flash wrote correct code but looped on a refused command; agent-gemma4-12b FAIL (edited without reading). One model serves every role so only one is ever loaded.",
+  "roles": {
+    "coder": {
+      "model": "agent-qwen3.6-35b",
+      "timeoutSec": 900,
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash(dotnet build:*)",
+        "Bash(git status:*)",
+        "Bash(git diff:*)"
+      ],
+      "tools": [
+        "Read",
+        "Edit",
+        "Write",
+        "Glob",
+        "Grep",
+        "Bash"
+      ]
+    },
+    "debugger": {
+      "model": "agent-qwen3.6-35b",
+      "timeoutSec": 900,
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Bash(dotnet build:*)",
+        "Bash(dotnet test:*)",
+        "Bash(git status:*)",
+        "Bash(git diff:*)",
+        "Bash(git log:*)"
+      ],
+      "tools": [
+        "Read",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash"
+      ]
+    },
+    "reviewer": {
+      "model": "agent-qwen3.6-35b",
+      "timeoutSec": 600,
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash(git diff:*)",
+        "Bash(git log:*)",
+        "Bash(git show:*)",
+        "Bash(git status:*)"
+      ],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ]
+    },
+    "docs": {
+      "model": "agent-qwen3.6-35b",
+      "timeoutSec": 600,
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit(**/*.md)",
+        "Write(**/*.md)"
+      ],
+      "tools": [
+        "Read",
+        "Edit",
+        "Write",
+        "Glob",
+        "Grep"
+      ]
+    }
+  },
+  "localMode": {
+    "model": "agent-qwen3.6-35b",
+    "alternatives": [
+      "agent-gemma4-26b",
+      "agent-gemma4-12b"
+    ]
+  }
+}

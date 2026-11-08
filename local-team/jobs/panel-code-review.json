@@ -1,0 +1,7 @@
+{
+  "id": "panel-code-review",
+  "model": "agent-qwen3.6-35b:latest",
+  "files": ["staging/desktop/WorkspacePanel.cs"],
+  "task": "Review this WinForms panel host. Return at most 180 words. Only report definite data-loss, disposal, or lifecycle defects with an exact trigger. If none, say no definite defects identified. Do not speculate or claim execution. The owner intentionally preserves and reparents the same Content instance; close-button of a floating owned Form should dock back. Layout persistence is out of scope for this first increment.",
+  "max_tokens": 800
+}

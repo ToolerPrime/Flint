@@ -1,0 +1,7 @@
+{
+  "id": "review",
+  "model": "agent-qwen3.6-35b:latest",
+  "files": ["tools/png_inventory.py", "tests/test_png_inventory.py"],
+  "task": "Review supplied PNG container inspector and tests. Return at most 400 words listing concrete correctness defects with minimal inputs demonstrating them, or state no definite defects. Contract: validate signature, first IHDR length13, no duplicate IHDR, alphabetic types with reserved uppercase third letter, CRC over type+payload, bounded chunk reads, empty final IEND and no trailing bytes. Ancillary lowercase first letters are valid. Pixel decoding, IDAT presence and colour-mode validation are explicitly out of scope. Do not claim execution. Separate suggestions from defects.",
+  "max_tokens": 1200
+}
