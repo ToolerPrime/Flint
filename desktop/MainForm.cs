@@ -590,6 +590,8 @@ public sealed partial class MainForm : ThemedForm
             return;
         }
 
+        if (_tool == Tool.Brush) BrushUp(e);
+
         if (_strokeBase != null && _tool is Tool.Line or Tool.Rectangle or Tool.Ellipse)
         {
             var raster = ActiveRaster();

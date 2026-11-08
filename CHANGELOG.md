@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — brush blend modes, Brush Settings, previews, more blend modes
+
+- Brush preset list shows a sample stroke for each brush; Size, Hardness, Opacity and Flow have sliders beside their numbers (size slider is logarithmic).
+- Brush blend mode in the options bar (every blend mode, plus Behind; Erase rubs out).
+- Brush Settings window with a live sample stroke: spacing, angle, roundness, hard pixel edges; shape dynamics (size, angle, roundness jitter, angle follows the stroke); scattering (amount, both axes, count, count jitter); colour dynamics (Fg/Bg, hue, saturation, brightness jitter, per dab or per stroke); transfer (opacity and flow jitter); noise, wet edges, airbrush build-up while held still, smoothing. Cancel restores the brush.
+- New presets: Spatter, Stipple, Watercolour Wet Edges, Chalk, Confetti.
+- Blend modes now follow Photoshop's full list and order: added Dissolve, Linear Burn, Darker Color, Lighter Color, Vivid Light, Linear Light, Pin Light, Hard Mix and Divide (layers, objects and the brush). Saved by name, so older files still open.
+- Translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.
+
 ## Unreleased — Brush tool
 
 - New Brush tool (B) with soft and hard round brushes, Photoshop style: size, hardness, opacity and flow in the options bar, plus presets (Hard Round, Soft Round, Hard Round Fine, Soft Round Large, Airbrush Soft, Calligraphy Flat, Hard Pencil). Opacity caps a whole stroke, so going over your own stroke never darkens past it; low flow builds up gently. The pixel Pencil stays, now on Y. Engine translated from PhotoCraft (MIT); see CREDITS_LICENSES.md.

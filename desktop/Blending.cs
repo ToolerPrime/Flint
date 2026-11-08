@@ -51,6 +51,14 @@ public static class Blending
             d[di + 3] = (byte)Math.Round(ab255 * (1 - a_s));
             return;
         }
+        if (mode == BlendMode.Dissolve)
+        {
+            // Each pixel is either fully painted or untouched, with the alpha as the chance.
+            uint h = (uint)di * 2654435761u; h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+            if ((h & 0xFFFF) / 65536.0 >= a_s) return;
+            d[di] = (byte)sb; d[di + 1] = (byte)sg; d[di + 2] = (byte)sr; d[di + 3] = 255;
+            return;
+        }
         if (ab255 == 0 && mode is BlendMode.Invert or BlendMode.Tint) return;   // nothing to act on
         if (mode == BlendMode.Invert)
         {
@@ -86,6 +94,10 @@ public static class Blending
     {
         switch (m)
         {
+            case BlendMode.DarkerColor:
+                (r, g, b) = Lum(br, bg, bb) <= Lum(sr, sg, sb) ? (br, bg, bb) : (sr, sg, sb); return;
+            case BlendMode.LighterColor:
+                (r, g, b) = Lum(br, bg, bb) >= Lum(sr, sg, sb) ? (br, bg, bb) : (sr, sg, sb); return;
             case BlendMode.Hue:
                 (r, g, b) = SetLum(SetSat((sr, sg, sb), Sat(br, bg, bb)), Lum(br, bg, bb)); return;
             case BlendMode.Saturation:
@@ -113,8 +125,17 @@ public static class Blending
         BlendMode.Exclusion => cb + cs - 2 * cb * cs,
         BlendMode.Add => Math.Min(1, cb + cs),
         BlendMode.Subtract => Math.Max(0, cb - cs),
+        BlendMode.LinearBurn => Math.Max(0, cb + cs - 1),
+        BlendMode.VividLight => cs <= 0.5 ? Burn(cb, 2 * cs) : Dodge(cb, 2 * cs - 1),
+        BlendMode.LinearLight => Math.Clamp(cb + 2 * cs - 1, 0, 1),
+        BlendMode.PinLight => cs <= 0.5 ? Math.Min(cb, 2 * cs) : Math.Max(cb, 2 * cs - 1),
+        BlendMode.HardMix => cb + cs >= 1 ? 1 : 0,
+        BlendMode.Divide => cs <= 0 ? (cb > 0 ? 1 : 0) : Math.Min(1, cb / cs),
         _ => cs,
     };
+
+    private static double Dodge(double cb, double cs) => cb == 0 ? 0 : cs >= 1 ? 1 : Math.Min(1, cb / (1 - cs));
+    private static double Burn(double cb, double cs) => cb >= 1 ? 1 : cs <= 0 ? 0 : 1 - Math.Min(1, (1 - cb) / cs);
 
     private static double HardLight(double cb, double cs) =>
         cs <= 0.5 ? cb * 2 * cs : cb + (2 * cs - 1) - cb * (2 * cs - 1);

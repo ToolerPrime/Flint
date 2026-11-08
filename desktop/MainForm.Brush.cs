@@ -9,6 +9,9 @@ public sealed partial class MainForm
     private ComboBox _brushPreset = null!;
     private NumericUpDown _brushSize = null!, _brushHardness = null!, _brushOpacity = null!, _brushFlow = null!;
     private bool _brushSync;
+    private ComboBox _brushMode = null!;
+    private readonly System.Windows.Forms.Timer _brushHold = new() { Interval = 30 };
+    private DateTime _brushHoldLast;
 
     private readonly Dictionary<NumericUpDown, MiniSlider> _brushSliders = new();
     private readonly Dictionary<string, Bitmap> _brushPreviews = new();
@@ -53,6 +56,21 @@ public sealed partial class MainForm
             _tips.SetToolTip(slider, _tips.GetToolTip(num) is { Length: > 0 } t ? t : num.AccessibleName);
             controls.AddRange(new Control[] { L(label, lw), num, slider });
         }
+        _brushMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 96, DropDownWidth = 130, MaxDropDownItems = 32, AccessibleName = "Brush blend mode" };
+        _brushMode.Items.Add("Behind");
+        foreach (var m in Enum.GetValues<BlendMode>()) _brushMode.Items.Add(m.ToString());
+        _brushMode.SelectedIndexChanged += (_, _) =>
+        {
+            if (_brushSync || _brushMode.SelectedItem is not string name) return;
+            _brushSettings = name == "Behind" ? _brushSettings with { Behind = true, Mode = BlendMode.Normal }
+                : _brushSettings with { Behind = false, Mode = Enum.Parse<BlendMode>(name) };
+        };
+        _tips.SetToolTip(_brushMode, "Brush mode: how the paint mixes with what is already on the layer. Behind paints only where the layer is see-through; Erase rubs out");
+        var more = new Button { Text = "Settings…", Width = 76, Height = 24, AccessibleName = "Brush settings" };
+        more.Click += (_, _) => ShowBrushSettings();
+        _tips.SetToolTip(more, "Brush settings: size, angle and colour jitter, scatter, noise, wet edges, airbrush build-up, smoothing");
+        controls.AddRange(new Control[] { L("Mode", 44), _brushMode, more });
+        _brushHold.Tick += (_, _) => BrushHoldTick();
         SetBrush(_brushSettings);
         return controls.ToArray();
     }
@@ -66,7 +84,7 @@ public sealed partial class MainForm
         var s = new BrushStroke(b with { Size = Math.Min(b.Size, h * 0.55f) }, (byte[])px.Clone(), w, h, Surface.Pack(Color.FromArgb(255, Theme.Text)), null);
         double mid = h / 2.0, amp = h * 0.18;
         s.Begin(8, mid);
-        for (int k = 1; k <= 60; k++) s.LineTo(8 + k * (w - 16) / 60.0, mid + amp * Math.Sin(k / 60.0 * Math.PI * 2));
+        for (int k = 1; k <= 60; k++) s.MoveTo(8 + k * (w - 16) / 60.0, mid + amp * Math.Sin(k / 60.0 * Math.PI * 2));
         s.RenderInto(px);
         return _brushPreviews[key] = ImageOps.FromPixels(w, h, px);
     }
@@ -96,6 +114,7 @@ public sealed partial class MainForm
         _brushHardness.Value = (decimal)Math.Round(Math.Clamp(b.Hardness, 0, 1) * 100);
         _brushOpacity.Value = (decimal)Math.Round(Math.Clamp(b.Opacity, 0, 1) * 100);
         _brushFlow.Value = (decimal)Math.Max(1, Math.Round(Math.Clamp(b.Flow, 0, 1) * 100));
+        if (_brushMode != null) _brushMode.SelectedItem = b.Behind ? "Behind" : b.Mode.ToString();
         _brushSync = false;
     }
 
@@ -106,21 +125,50 @@ public sealed partial class MainForm
         return ((e.X - o.X) / (double)_zoom, (e.Y - o.Y) / (double)_zoom);
     }
 
+    private void ShowBrushSettings()
+    {
+        using var dlg = new BrushSettingsDialog(_brushSettings, SetBrush);
+        dlg.ShowDialog(this);
+    }
+
     private void BrushDown(MouseEventArgs e, uint colour, RasterObject raster)
     {
-        _brushStroke = new BrushStroke(_brushSettings, _strokeBase!, DocW, DocH, colour, _selection);
+        uint other = InkFor(e.Button == MouseButtons.Right ? MouseButtons.Left : MouseButtons.Right);
+        _brushStroke = new BrushStroke(_brushSettings with { Seed = Environment.TickCount }, _strokeBase!, DocW, DocH, colour, _selection, other);
         _brushOut = (byte[])_strokeBase!.Clone();
         var (x, y) = ToImageF(e);
         _brushStroke.Begin(x, y);
         _brushStroke.RenderInto(_brushOut);
         Commit(new Surface(_brushOut, DocW, DocH), raster);
+        _brushHoldLast = DateTime.UtcNow;
+        if (_brushSettings.BuildUp && !Program.Headless) _brushHold.Start();
+    }
+
+    /// <summary>Airbrush build-up while the mouse is held still.</summary>
+    private void BrushHoldTick()
+    {
+        if (_brushStroke == null || _brushOut == null || !_dragging) { _brushHold.Stop(); return; }
+        var now = DateTime.UtcNow;
+        _brushStroke.Hold((now - _brushHoldLast).TotalMilliseconds);
+        _brushHoldLast = now;
+        if (!_brushStroke.RenderInto(_brushOut).IsEmpty) Commit(new Surface(_brushOut, DocW, DocH), ActiveRaster());
+    }
+
+    private void BrushUp(MouseEventArgs e)
+    {
+        _brushHold.Stop();
+        if (_brushStroke == null || _brushOut == null) return;
+        var (x, y) = ToImageF(e);
+        _brushStroke.End(x, y);
+        if (!_brushStroke.RenderInto(_brushOut).IsEmpty) Commit(new Surface(_brushOut, DocW, DocH), ActiveRaster());
     }
 
     private void BrushMove(MouseEventArgs e, RasterObject raster)
     {
         if (_brushStroke == null || _brushOut == null) return;
         var (x, y) = ToImageF(e);
-        _brushStroke.LineTo(x, y);
+        _brushStroke.MoveTo(x, y);
+        _brushHoldLast = DateTime.UtcNow;   // moving resets the airbrush hold
         if (_brushStroke.RenderInto(_brushOut).IsEmpty) return;
         Commit(new Surface(_brushOut, DocW, DocH), raster);
     }

@@ -82,6 +82,79 @@ public static class BrushTest
         catch (Exception ex) { nanSafe = false; Console.WriteLine("         " + ex.Message); }
         Check(nanSafe, "nonsense settings or positions do not crash");
 
+        Console.WriteLine("Blend modes");
+        byte[] Solid(byte b, byte g, byte r, byte a) { var p = new byte[W * H * 4]; for (int i = 0; i < p.Length; i += 4) { p[i] = b; p[i + 1] = g; p[i + 2] = r; p[i + 3] = a; } return p; }
+        byte[] Paint(BrushSettings b, byte[] basePx, uint ink)
+        {
+            var s = new BrushStroke(b, basePx, W, H, ink, null); s.Begin(32, 32); var o = (byte[])basePx.Clone(); s.RenderInto(o); return o;
+        }
+        var mid = Solid(128, 128, 128, 255);
+        var mul = Paint(new BrushSettings(Size: 20, Mode: BlendMode.Multiply), mid, Surface.Pack(Color.FromArgb(255, 128, 128, 128)));
+        Check(Math.Abs(mul[(32 * W + 32) * 4] - 64) <= 1, "Multiply brush darkens: grey on grey gives darker grey");
+        var behind = Paint(new BrushSettings(Size: 20, Behind: true), mid, black);
+        Check(behind[(32 * W + 32) * 4] == 128, "Behind brush leaves opaque pixels alone");
+        var behindClear = Paint(new BrushSettings(Size: 20, Behind: true), new byte[W * H * 4], black);
+        Check(behindClear[(32 * W + 32) * 4 + 3] == 255, "Behind brush paints where the layer is see-through");
+        var erase = Paint(new BrushSettings(Size: 20, Mode: BlendMode.Erase), mid, black);
+        Check(erase[(32 * W + 32) * 4 + 3] == 0 && erase[(32 * W + 50) * 4 + 3] == 255, "Erase brush rubs out");
+        var dissolve = Paint(new BrushSettings(Size: 30, Hardness: 0, Mode: BlendMode.Dissolve), White(), black);
+        bool onlyFull = true; int painted = 0;
+        for (int i = 0; i < dissolve.Length; i += 4) { if (dissolve[i] != 0 && dissolve[i] != 255) onlyFull = false; if (dissolve[i] == 0) painted++; }
+        Check(onlyFull && painted > 50, "Dissolve paints only whole pixels, scattered by the soft edge");
+        double Sep(BlendMode m, double b, double s) { Blending.Mix(m, b, b, b, s, s, s, out var r, out _, out _); return r; }
+        Check(Sep(BlendMode.LinearBurn, 0.6, 0.6) is > 0.199 and < 0.201 && Sep(BlendMode.Divide, 0.3, 0.6) is > 0.499 and < 0.501
+            && Sep(BlendMode.HardMix, 0.6, 0.5) == 1 && Sep(BlendMode.HardMix, 0.4, 0.5) == 0 && Sep(BlendMode.PinLight, 0.2, 0.9) is > 0.799 and < 0.801
+            && Sep(BlendMode.LinearLight, 0.5, 0.75) == 1 && Sep(BlendMode.VividLight, 0.5, 0.5) is > 0.49 and < 0.51, "new Photoshop blend formulas give the expected values");
+        Blending.Mix(BlendMode.DarkerColor, 0.9, 0.9, 0.9, 0.1, 0.5, 0.1, out var dr, out var dg, out _);
+        Check(dr == 0.1 && dg == 0.5, "Darker Color keeps the whole darker colour");
+
+        Console.WriteLine("Brush settings (dynamics)");
+        int Dark(byte[] p) { int n = 0; for (int i = 0; i < p.Length; i += 4) if (p[i] < 128) n++; return n; }
+        byte[] Line(BrushSettings b, uint ink, uint? second = null)
+        {
+            var s = new BrushStroke(b, White(), W, H, ink, null, second); s.Begin(8, 32); s.LineTo(56, 32); var o = White(); s.RenderInto(o); return o;
+        }
+        var plain = Line(new BrushSettings(Size: 8, Spacing: 0.25f), black);
+        var jitter = Line(new BrushSettings(Size: 8, Spacing: 0.25f, SizeJitter: 1, Seed: 3), black);
+        Check(Dark(jitter) < Dark(plain), "size jitter makes dabs smaller at random");
+        Check(Line(new BrushSettings(Size: 8, Spacing: 0.25f, SizeJitter: 1, Seed: 3), black).SequenceEqual(jitter), "the same seed paints exactly the same stroke");
+        var scatter = Line(new BrushSettings(Size: 4, Spacing: 0.5f, Scatter: 4, Seed: 1), black);
+        bool off = false; for (int y = 0; y < H; y++) if (Math.Abs(y - 32) > 6 && scatter[(y * W + 30) * 4] < 128) off = true;
+        bool offAny = false; for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (Math.Abs(y - 32) > 6 && scatter[(y * W + x) * 4] < 128) offAny = true;
+        Check(offAny, "scatter throws dabs away from the line");
+        var hue = Line(new BrushSettings(Size: 6, Spacing: 1, HueJitter: 1, Seed: 5), Surface.Pack(Color.Red));
+        var hues = new HashSet<int>(); for (int i = 0; i < hue.Length; i += 4) if (hue[i] < 200 || hue[i + 1] < 200) hues.Add((hue[i] / 64) * 16 + (hue[i + 1] / 64) * 4 + hue[i + 2] / 64);
+        Check(hues.Count >= 4, $"hue jitter paints several different colours ({hues.Count} found)");
+        var fgbg = Line(new BrushSettings(Size: 6, Spacing: 1, FgBgJitter: 1, Seed: 2), Surface.Pack(Color.Red), Surface.Pack(Color.Blue));
+        bool blueish = false; for (int i = 0; i < fgbg.Length; i += 4) if (fgbg[i] > 150 && fgbg[i + 2] < 150) blueish = true;
+        Check(blueish, "Fg/Bg jitter mixes in the other colour");
+        var opj = Line(new BrushSettings(Size: 10, Spacing: 2, OpacityJitter: 1, Seed: 9), black);
+        var greys = new HashSet<int>(); for (int x = 8; x <= 56; x++) greys.Add(opj[(32 * W + x) * 4] / 16);
+        Check(greys.Count >= 3, "opacity jitter gives dabs of different strength");
+        var noisy = Line(new BrushSettings(Size: 30, Hardness: 0, Noise: true), black);
+        var smooth = Line(new BrushSettings(Size: 30, Hardness: 0), black);
+        int Changes(byte[] p) { int n = 0; for (int x = 8; x < 56; x++) n += Math.Abs(p[(20 * W + x) * 4] - p[(20 * W + x + 1) * 4]) > 40 ? 1 : 0; return n; }
+        Check(Changes(noisy) > Changes(smooth) + 5, "noise makes soft edges grainy");
+        var wet = Line(new BrushSettings(Size: 30, Hardness: 0.6f, WetEdges: true), black);
+        Check(wet[(32 * W + 32) * 4] > wet[(22 * W + 32) * 4], "wet edges: lighter in the middle, darker towards the rim");
+        var air = new BrushStroke(new BrushSettings(Size: 10, Flow: 0.1f, BuildUp: true, BuildUpRate: 20), White(), W, H, black, null);
+        air.Begin(32, 32); float before = air.CoverageAt(32, 32); air.Hold(1000);
+        Check(air.DabCount == 21 && air.CoverageAt(32, 32) > before * 3, "airbrush build-up keeps adding paint while held still");
+        var steady = new BrushStroke(new BrushSettings(Size: 4, Smoothing: 1), White(), W, H, black, null);
+        steady.Begin(10, 10); steady.MoveTo(50, 10); float lag = steady.CoverageAt(48, 10); steady.End(50, 10);
+        Check(lag == 0 && steady.CoverageAt(48, 10) > 0, "smoothing lags behind the pointer, then catches up at the end");
+
+        Console.WriteLine("Brush settings window");
+        BrushSettings? applied = null;
+        using (var dlg = new BrushSettingsDialog(BrushSettings.Presets[1], b => applied = b))
+        {
+            dlg.StartPosition = FormStartPosition.Manual; dlg.Location = new Point(-6000, -6000);
+            dlg.Show(); Application.DoEvents();
+            Check(applied == null, "opening the window changes nothing");
+            dlg.Close();
+        }
+        Check(applied == BrushSettings.Presets[1], "closing without OK puts the brush back");
+
         Console.WriteLine("Brush tool in the editor");
         using (var form = new MainForm { SuppressPrompts = true, StartPosition = FormStartPosition.Manual, Location = new Point(-6000, -6000) })
         {
@@ -110,6 +183,10 @@ public static class BrushTest
                 using var sheet = new Bitmap(Math.Max(bar.Width, list.Width), bar.Height + list.Height + 8);
                 using (var g = Graphics.FromImage(sheet)) { g.Clear(Color.Gray); g.DrawImage(bar, 0, 0); g.DrawImage(list, 0, bar.Height + 8); }
                 sheet.Save(shot);
+                using var dlg = new BrushSettingsDialog(BrushSettings.Presets.First(p => p.Name == "Chalk"), _ => { });
+                dlg.StartPosition = FormStartPosition.Manual; dlg.Location = new Point(-6000, -6000); dlg.Show(); Application.DoEvents();
+                using var dbmp = new Bitmap(dlg.Width, dlg.Height); dlg.DrawToBitmap(dbmp, new Rectangle(Point.Empty, dlg.Size));
+                dbmp.Save(Path.ChangeExtension(shot, null) + "-settings.png"); dlg.Close();
             }
             Check(form.TestBrush.Name == "Hard Round Fine" && form.TestBrush.Size == 5, "choosing a preset loads its settings");
         }

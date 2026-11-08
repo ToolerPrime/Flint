@@ -57,7 +57,7 @@ Photoshop's brush system.
    operations (Flint's exact-pixel rule: no GDI+ drawing on stored pixels).
    The existing pencil stays for pixel art; the brush is a new tool (B), and
    the pencil keeps Y.
-3. **Dynamics**: shape, scattering, transfer, colour dynamics; pen pressure
+3. **Dynamics** — done 2026-11-08 except pen pressure (`BrushSettingsDialog.cs`): brush blend mode and Behind, shape dynamics, scattering, colour dynamics, transfer, noise, wet edges, build-up, smoothing. Original plan: shape, scattering, transfer, colour dynamics; pen pressure
    through Windows pointer messages (WM_POINTER) when a tablet is present.
 4. **Presets and picture tips**: the 37 presets with the generated tips and
    textures from `procedural.rs`, a brush panel with previews, save/load.

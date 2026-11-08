@@ -19,10 +19,15 @@ using System.Drawing.Imaging;
 namespace Flint;
 
 /// <summary>Names are stored in files, so existing names never change; new modes are appended. See Blending.cs for the formulas.</summary>
+/// <summary>Photoshop's blend modes in Photoshop's menu order (Add is Linear Dodge), then
+/// Fireworks' Invert, Tint and Erase. Saved by name, so the order can change freely.</summary>
 public enum BlendMode
 {
-    Normal, Multiply, Screen, Add, Subtract,
-    Overlay, Darken, Lighten, ColorDodge, ColorBurn, HardLight, SoftLight, Difference, Exclusion,
+    Normal, Dissolve,
+    Darken, Multiply, ColorBurn, LinearBurn, DarkerColor,
+    Lighten, Screen, ColorDodge, Add, LighterColor,
+    Overlay, SoftLight, HardLight, VividLight, LinearLight, PinLight, HardMix,
+    Difference, Exclusion, Subtract, Divide,
     Hue, Saturation, Color, Luminosity,
     Invert, Tint, Erase,
 }
