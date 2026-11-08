@@ -30,3 +30,22 @@ worker scripts, and do not commit, push or publish.
 - Exact pixels, undo snapshots share objects (never mutate them in place),
   version the file format, no Adobe/Macromedia assets, LF line endings.
 - Commit only when asked. Never push without Tyler's permission.
+
+## Design skills
+
+Project skills live in `.agents/skills/`. Use `$skill-name` in a request, or
+let Codex select them for matching interface work. Paths below are relative
+to this repo; start Codex here (or in a subfolder) for project discovery.
+
+- [flint-ui-style](.agents/skills/flint-ui-style/SKILL.md): palette, spacing and themed controls, including light theme.
+- [flint-dialogs](.agents/skills/flint-dialogs/SKILL.md): dialog layout, accessible inputs, live preview and Cancel rollback.
+- [flint-icons](.agents/skills/flint-icons/SKILL.md): original 24-unit code-drawn icons and key registration.
+- [flint-ux-writing](.agents/skills/flint-ux-writing/SKILL.md): short labels, useful tooltips and familiar names.
+- [fireworks-parity](.agents/skills/fireworks-parity/SKILL.md): observed Fireworks 8 behaviour and Macromedia Standard shortcuts.
+- [photocraft-port](.agents/skills/photocraft-port/SKILL.md): source-based translations, attribution and the port plan.
+- [flint-ui-verification](.agents/skills/flint-ui-verification/SKILL.md): builds, layout checks, pictures and honest live-test reporting.
+- [flint-workspace](.agents/skills/flint-workspace/SKILL.md): panels, toolbars, layouts, shortcuts and content visibility.
+
+For simple support jobs, prefer bounded free local workers with named source
+files and reviewed artifacts; no automatic paid fallback. These skills guide
+future UI work and do not themselves authorise unrelated app changes.
