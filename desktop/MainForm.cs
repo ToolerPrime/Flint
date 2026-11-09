@@ -226,6 +226,7 @@ public sealed partial class MainForm : ThemedForm
         var frameMenu = new ToolStripMenuItem("F&rame");
         frameMenu.DropDownItems.Add("&Add blank frame", null, (_, _) => AddBlankFrame());
         frameMenu.DropDownItems.Add("D&uplicate frame", null, (_, _) => DuplicateFrame());
+        frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunMotionTween());
         frameMenu.DropDownItems.Add("De&lete frame", null, (_, _) => DeleteFrame());
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
         frameMenu.DropDownItems.Add("&Reverse order", null, (_, _) => ReverseOrder());

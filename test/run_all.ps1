@@ -31,6 +31,10 @@ Write-Host "`n--- playback timing, onion skin ---"
 & $exe --animtest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "animtest failed" }
 
+Write-Host "`n--- motion tween, frame insertion, undo and persistence ---"
+& $exe --motiontweentest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "motiontweentest failed" }
+
 Write-Host "`n--- audio: mixer, decoding, storage, sync ---"
 & $exe --audiotest "$out\audio" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "audiotest failed" }

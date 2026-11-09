@@ -17,6 +17,13 @@ internal static class Program
     private static int Main(string[] args)
     {
         Headless = args.Length > 0 && args[0].StartsWith("--");
+        if (args.Length >= 1 && args[0] == "--motiontweentest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return MotionTweenTest.Run();
+        }
+
         if (args.Length >= 1 && args[0] == "--productivitytest")
         {
             AttachConsole(-1); ApplicationConfiguration.Initialize(); return ProductivityTest.Run();

@@ -141,7 +141,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Onion skin | Working | Before/after counts, opacity, red/blue tint |
 | Loop, ping-pong, once; 0.25×–4× speed | Working | Timing tested in the real form |
 | Timeline zoom and scroll | Working | Ctrl+wheel, wheel |
-| Tweening, motion paths | Missing | |
+| Motion tween | Partial | Linear movement of one object across generated frames. Editable tween spans, easing, and curved paths are pending. |
 | Animation symbols | Missing | |
 
 ## Sprite tools (beyond Fireworks)
