@@ -183,6 +183,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 |---|---|---|
 | Open Fireworks `.png` flattened | Working | Detected by its private chunks; the import dialog warns that layers will be flattened and the original is untouched |
 | Open Fireworks `.png` editable | Partial | Layers, frames and delays, exact bitmaps, vector paths with solid and linear/circular/elliptical gradient fills and strokes, text as its saved picture, groups, symbol instances, and live effects (shadows, glow, bevel, blurs, hue/saturation, colour fill). Not yet: masks, blend modes, other gradient kinds, symbol label overrides; a hidden reference layer keeps the exact saved picture |
+| Save Fireworks `.png` | Partial | File → Save Fireworks PNG writes editable bitmap layers, visibility, locks, shared layers and animation timing. Artwork, masks and effects are baked into layer pixels. Blend modes across layers can look different. |
 | Photoshop `.8bf` plugins | Blocked | A 32-bit plugin cannot load into a 64-bit process |
 
 ## Modern architecture

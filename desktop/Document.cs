@@ -640,9 +640,7 @@ public sealed class Document
                 continue;
             }
             // Masked or non-normal layers are flattened first, then masked and combined.
-            var layer = new byte[target.Length];
-            DrawCel(layer, cel, l.Opacity);
-            if (mask != null) ApplyMask(layer, ImageOps.GetPixels(mask.Pixels));
+            var layer = RenderLayerPixels(l, cel, mask);
             Blending.Layer(target, layer, l.Blend, Width, Height);
         }
         return target;
@@ -651,6 +649,17 @@ public sealed class Document
     /// <summary>The cel's mask if it is enabled and fits the canvas (a stale size is ignored, never an error).</summary>
     private RasterObject? ActiveMask(Layer l, Cel cel) =>
         l.MaskEnabled && cel.Mask is { } m && m.Width == Width && m.Height == Height ? m : null;
+
+    internal byte[] RenderLayerPixels(Layer layer, Cel cel) =>
+        RenderLayerPixels(layer, cel, ActiveMask(layer, cel));
+
+    private byte[] RenderLayerPixels(Layer layer, Cel cel, RasterObject? mask)
+    {
+        var pixels = new byte[Width * Height * 4];
+        DrawCel(pixels, cel, layer.Opacity);
+        if (mask != null) ApplyMask(pixels, ImageOps.GetPixels(mask.Pixels));
+        return pixels;
+    }
 
     /// <summary>A new mask: the old one placed at dx,dy on a canvas of the new size, with the uncovered area revealed (white).</summary>
     public static RasterObject ReframeMask(RasterObject m, int w, int h, int dx, int dy)

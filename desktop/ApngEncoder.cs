@@ -97,7 +97,7 @@ public static class ApngEncoder
         return list;
     }
 
-    private static void WriteChunk(Stream s, string type, byte[] data)
+    internal static void WriteChunk(Stream s, string type, byte[] data)
     {
         Span<byte> len = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(len, (uint)data.Length);

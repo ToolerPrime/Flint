@@ -89,7 +89,7 @@ internal static class Program
         if (args.Length >= 1 && args[0] == "--fwtest")
         {
             AttachConsole(-1);
-            return FireworksTest.Run();
+            return FireworksTest.Run(args.Length >= 2 ? args[1] : null);
         }
 
         if (args.Length >= 1 && args[0] == "--spritetest")

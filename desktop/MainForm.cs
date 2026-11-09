@@ -198,6 +198,7 @@ public sealed partial class MainForm : ThemedForm
         file.DropDownItems.Add(new ToolStripSeparator());
         Add(file, "&Save", Keys.Control | Keys.S, () => SaveProject(false));
         Add(file, "Save &as…", Keys.Control | Keys.Shift | Keys.S, () => SaveProject(true));
+        file.DropDownItems.Add("Save Fireworks PNG…", null, (_, _) => SaveFireworksPng());
         file.DropDownItems.Add(new ToolStripSeparator());
         Add(file, "&Import images…", Keys.Control | Keys.R, ChooseFiles);
         Add(file, "&Export…", Keys.Control | Keys.Shift | Keys.R, ExportPreview);

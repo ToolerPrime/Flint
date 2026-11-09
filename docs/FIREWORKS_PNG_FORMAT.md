@@ -12,11 +12,12 @@ inferred; **[guess]** unconfirmed.
 ## Container
 
 A normal PNG. The ordinary `IHDR`/`IDAT` chunks hold the flattened picture, so
-any viewer shows it. Fireworks adds private chunks after `IDAT`:
+any viewer shows it. Fireworks 8 samples put the following private chunks
+before `IDAT`:
 
 | Chunk | Contents |
 |---|---|
-| `mkBF` | 72 bytes, starts `FA DE CA FE`, then a big-endian int (`4` seen). [observed] |
+| `mkBF` | 72 bytes, starts `FA DE CA FE`, then the big-endian integer 4, then 64 zero bytes in the samples. [observed] |
 | `mkTS` | zlib-compressed **document tree** (the editable document). [verified] |
 | `mkBS` | zlib-compressed small tree with a single bitmap; not the document. [observed] |
 | `mkBT` | one compressed **pixel tile** each. [verified] |
@@ -87,6 +88,10 @@ rose by 10-70 points when imported in reverse), and by a sample whose first
 path is a vignette that visibly lies over the bitmap listed after it. [verified]
 
 A layer hidden in a frame has `VISb{0}` at that frame's position in `VIFv`.
+
+When writing shared layers, include a `CELv` for each frame. Fireworks 8
+shows an empty shared layer on later frames if their cells are missing.
+Those cells can reference the same bitmap tile IDs. [verified in Fireworks 8]
 
 **Frame delays** are not on the frames (verified again with a Fireworks-made 3-frame file: delays 25/50/100 hundredths
 are stored as `FNDi` 19/32/64 hex, and open as 250/500/1000 ms). They are in the export settings:

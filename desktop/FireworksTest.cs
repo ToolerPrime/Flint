@@ -107,7 +107,7 @@ public static partial class FireworksTest
 
     #endregion
 
-    public static int Run()
+    public static int Run(string? exportFixture = null)
     {
         Console.WriteLine("Fireworks tag parser");
         Parser();
@@ -121,6 +121,8 @@ public static partial class FireworksTest
         RealSamples();
         Console.WriteLine("Real files");
         Real();
+        Console.WriteLine("Save editable Fireworks PNG");
+        SaveEditablePng(exportFixture);
         Console.WriteLine(_fails == 0 ? "all fireworks checks passed" : $"{_fails} fireworks check(s) FAILED");
         return _fails == 0 ? 0 : 1;
     }

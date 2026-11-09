@@ -5,6 +5,38 @@ namespace Flint;
 
 public sealed partial class MainForm
 {
+    private void SaveFireworksPng()
+    {
+        FinishFloat();
+        StopPlay();
+        if (FireworksPngWriter.HasCrossLayerBlending(_doc) &&
+            MessageBox.Show(ProjectOwner,
+                "Some blend modes may look different when Fireworks recombines the saved layers. Save a Fireworks PNG anyway?",
+                "Save Fireworks PNG", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+            return;
+
+        string name = Path.GetFileNameWithoutExtension(_path ?? _sourcePath ?? "untitled");
+        using var dialog = new SaveFileDialog
+        {
+            Title = "Save Fireworks PNG",
+            Filter = "Fireworks PNG (editable bitmap layers)|*.png",
+            FileName = $"{name}-fireworks.png",
+            DefaultExt = "png",
+        };
+        if (dialog.ShowDialog(ProjectOwner) != DialogResult.OK) return;
+
+        string path = dialog.FileName;
+        var doc = _doc;
+        var (ok, message) = ProgressDialog.Run(ProjectOwner, "Saving Fireworks PNG", (progress, ct) =>
+        {
+            FireworksPngWriter.Save(doc, path, ct, progress);
+            return $"Saved {Path.GetFileName(path)} with editable bitmap layers.";
+        });
+        Say(message);
+        if (!ok && message != "cancelled")
+            MessageBox.Show(ProjectOwner, message, "Could not save Fireworks PNG", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
     /// <summary>File > Open for either kind of file. A plain PNG is not opened: Import places it.</summary>
     internal bool OpenAny(string path)
     {
