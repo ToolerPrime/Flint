@@ -1,4 +1,4 @@
-/* Onion skin: ghosts of neighbouring frames under the current one. */
+/* Onion skin: display-only ghosts of neighbouring frames. */
 using System.Drawing.Imaging;
 
 namespace Flint;
@@ -7,13 +7,13 @@ public sealed class OnionSettings
 {
     public bool Enabled;
     public int Before = 1;
-    public int After;
+    public int After = 1;
     /// <summary>Opacity of the nearest ghost, 0..1. Further ghosts fade out.</summary>
     public float Opacity = 0.35f;
     /// <summary>Red for earlier frames, blue for later ones.</summary>
     public bool Tint = true;
     /// <summary>Wrap at the ends, matching looped playback.</summary>
-    public bool Wrap = true;
+    public bool Wrap;
 }
 
 public static class Onion
@@ -51,12 +51,18 @@ public static class Onion
 
     public static void Draw(Graphics g, Document doc, OnionSettings s, int current, Rectangle dest)
     {
-        // Furthest first, so nearer ghosts sit on top.
         var plan = Plan(s, current, doc.FrameCount);
-        for (int i = plan.Count - 1; i >= 0; i--)
+        if (plan.Count == 0) return;
+
+        // Shared layers already appear in the current composite. Skip them in
+        // ghosts, and show ghosts only through the current frame's moving art.
+        var currentPixels = doc.RenderPixels(current, omitShared: true);
+        foreach (var (frame, alpha, before) in plan.OrderBy(item => item.opacity))
         {
-            var (frame, alpha, before) = plan[i];
-            using var ghost = doc.RenderFrame(frame);
+            var pixels = doc.RenderPixels(frame, omitShared: true);
+            for (int i = 3; i < pixels.Length; i += 4)
+                pixels[i] = (byte)((pixels[i] * (255 - currentPixels[i]) + 127) / 255);
+            using var ghost = ImageOps.FromPixels(doc.Width, doc.Height, pixels);
             var m = new ColorMatrix { Matrix33 = alpha };
             if (s.Tint)
             {

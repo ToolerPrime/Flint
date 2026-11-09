@@ -1,4 +1,4 @@
-﻿/* Flint's look: one palette, a dark default and a light alternative.
+/* Flint's look: one palette, a dark default and a light alternative.
  * Dark = near-black surround, grey panels, one mint accent. Everything that
  * paints itself reads these values at paint time, and Theme.Apply restyles the
  * standard WinForms controls, so switching theme needs no restart.
@@ -32,6 +32,7 @@ public static class Theme
         public bool PixelSnap { get; set; } = true;
         public Dictionary<string, WorkspaceLayout> Workspaces { get; set; } = new();
         public WorkspaceLayout? LastWorkspace { get; set; }
+        public List<string> RecentProjects { get; set; } = new();
     }
     private static Data _data = new();
     private static string SettingsPath => Path.Combine(
@@ -103,6 +104,20 @@ public static class Theme
 
     public static bool IsCollapsed(string key, bool dflt) => _data.Collapsed.TryGetValue(key, out var v) ? v : dflt;
     public static void SetCollapsed(string key, bool v) { _data.Collapsed[key] = v; Save(); }
+
+    private static readonly List<string> _testRecentProjects = new();
+    private static List<string> Recent => Program.Headless ? _testRecentProjects : (_data.RecentProjects ??= new());
+    public static IReadOnlyList<string> RecentProjects => Recent;
+
+    public static void RememberProject(string path)
+    {
+        path = Path.GetFullPath(path);
+        var recent = Recent;
+        recent.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        recent.Insert(0, path);
+        if (recent.Count > 8) recent.RemoveRange(8, recent.Count - 8);
+        if (!Program.Headless) Save();
+    }
 
     private static void Save()
     {

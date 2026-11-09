@@ -56,7 +56,7 @@ public sealed partial class MainForm
         Item("Save", "save", "Save (Ctrl+S)", () => SaveProject(false));
         ts.Items.Add(new ToolStripSeparator());
         Item("Import", "import", "Import images (Ctrl+I)", ChooseFiles);
-        Item("Export…", "export", "Export (Ctrl+E)", ExportAny);
+        Item("Export…", "export", "Preview and export (Ctrl+Shift+R)", ExportPreview);
         ts.Items.Add(new ToolStripSeparator());
         Item("Undo", "undo", "Undo (Ctrl+Z)", Undo);
         Item("Redo", "redo", "Redo (Ctrl+Y)", Redo);
@@ -441,26 +441,16 @@ public sealed partial class MainForm
         Add(Ib("zoom-in", "Zoom in (Ctrl++)", () => Zoom(1)));
         Add(Sep(), 4);
 
-        // Onion skin: one toggle; its settings appear beside it only when on.
-        _onionBox = new MintCheckBox { Text = "Onion", IconKey = "onion", Size = new Size(30, 30) };
+        _onionBox = new MintCheckBox { Text = "Onion skin", IconKey = "onion",
+            Size = new Size(30, 30), AccessibleName = "Show onion skin" };
         _onionBox.CheckedChanged += (_, _) => { _onionSet.Enabled = _onionBox.Checked; _canvas.Invalidate(); };
         _tips.SetToolTip(_onionBox, "Onion skin: show neighbouring frames faintly");
         Add(_onionBox);
-        var onion = new List<Control>();
-        void Extra(Control c, string tip, int left = 2) { _tips.SetToolTip(c, tip); onion.Add(c); Add(c, left); c.Visible = false; }
-        _onionBefore = Num(0, 0, 40, 1, 0, 9);
-        _onionBefore.ValueChanged += (_, _) => { _onionSet.Before = (int)_onionBefore.Value; _canvas.Invalidate(); };
-        Extra(_onionBefore, "Onion: frames before");
-        _onionAfter = Num(0, 0, 40, 0, 0, 9);
-        _onionAfter.ValueChanged += (_, _) => { _onionSet.After = (int)_onionAfter.Value; _canvas.Invalidate(); };
-        Extra(_onionAfter, "Onion: frames after");
-        _onionOpacity = Num(0, 0, 48, 35, 5, 100);
-        _onionOpacity.ValueChanged += (_, _) => { _onionSet.Opacity = (float)_onionOpacity.Value / 100f; _canvas.Invalidate(); };
-        Extra(_onionOpacity, "Onion: opacity %");
-        _onionTint = new MintCheckBox { Text = "tint", Width = 48, Height = 22, Checked = true };
-        _onionTint.CheckedChanged += (_, _) => { _onionSet.Tint = _onionTint.Checked; _canvas.Invalidate(); };
-        Extra(_onionTint, "Tint the onion frames (red before, green after)", 6);
-        _onionBox.CheckedChanged += (_, _) => { foreach (var c in onion) c.Visible = _onionBox.Checked; };
+        var onionSettings = new IconButton { Text = "Onion…", ShowText = true, Size = new Size(62, 30),
+            AccessibleName = "Onion skin settings" };
+        onionSettings.Click += (_, _) => ShowOnionSettings();
+        _tips.SetToolTip(onionSettings, "Set the number, opacity and colour of onion skin frames");
+        Add(onionSettings);
         Add(Sep(), 4);
 
         Add(Ib("audio", "Import audio…", ChooseAudio));
@@ -505,7 +495,9 @@ public sealed partial class MainForm
         var light = new ToolStripMenuItem("&Light", null, (_, _) => Theme.Set(false)) { Checked = !Theme.Dark };
         theme.DropDownItems.Add(dark);
         theme.DropDownItems.Add(light);
-        Theme.Changed += () => { dark.Checked = Theme.Dark; light.Checked = !Theme.Dark; };
+        void UpdateChecks() { dark.Checked = Theme.Dark; light.Checked = !Theme.Dark; }
+        Theme.Changed += UpdateChecks;
+        Disposed += (_, _) => Theme.Changed -= UpdateChecks;
         view.DropDownItems.Add(theme);
     }
 

@@ -11,7 +11,9 @@ public sealed class DockManager
 {
     private static readonly DockSide[] Sides = { DockSide.Top, DockSide.Bottom, DockSide.Left, DockSide.Right };
     private readonly Form _owner;
+    private readonly Form? _projectWindow;
     private readonly Control _host;
+    private bool _projectActive;
     private readonly Dictionary<DockSide, List<DockColumn>> _sides = Sides.ToDictionary(s => s, _ => new List<DockColumn>());
     private readonly Dictionary<DockSide, Panel> _rails = new();
     private readonly HashSet<DockSide> _folded = new();
@@ -29,9 +31,10 @@ public sealed class DockManager
     public PanelPage? FindPage(string name) => _pages.FirstOrDefault(p => p.Name == name);
     public event Action? Changed;
 
-    public DockManager(Form owner, Control host)
+    public DockManager(Form owner, Control host, Form? projectWindow = null)
     {
-        _owner = owner; _host = host;
+        _owner = owner; _host = host; _projectWindow = projectWindow;
+        _projectActive = projectWindow == null;
         foreach (var side in new[] { DockSide.Left, DockSide.Right, DockSide.Bottom })
         {
             var s = side;
@@ -180,9 +183,32 @@ public sealed class DockManager
             DockGroup(g, side, exists ? col : Math.Min(col, _sides[side].Count), idx, !exists);
             g.Collapsed = g.FoldedBeforeFloat;
         };
-        f.Show(_owner);
+        if (_projectActive) f.Show(_projectWindow ?? _owner);
         Rearrange();
         Changed?.Invoke();
+    }
+
+    internal void SetProjectActive(bool active)
+    {
+        _projectActive = active && (_projectWindow?.Visible ?? true);
+        if (!_projectActive) { _follow?.Stop(); _hint?.Hide(); }
+        foreach (var g in _groups)
+        {
+            if (g.FloatingWindow is not { } window) continue;
+            if (!_projectActive) window.Hide();
+            else if (!window.Visible) window.Show(_projectWindow ?? _owner);
+        }
+    }
+
+    internal void DisposeProjectWindows()
+    {
+        _follow?.Stop();
+        _follow?.Dispose();
+        _hint?.Dispose();
+        foreach (var g in _groups) g.FloatingWindow?.Dispose();
+        // Hidden pages aren't parented to the editor or a floating window.
+        foreach (var page in _pages)
+            if (page.Content.Parent == null && !page.Content.IsDisposed) page.Content.Dispose();
     }
 
     // ---------- pages and groups ----------
@@ -336,7 +362,7 @@ public sealed class DockManager
         if (t is { } target && _hint != null)
         {
             _hint.Bounds = HintBounds(target);
-            if (!_hint.Visible) _hint.Show(_owner);
+            if (!_hint.Visible) _hint.Show(_projectWindow ?? _owner);
             g.FloatingWindow?.BringToFront();
         }
         else _hint?.Hide();

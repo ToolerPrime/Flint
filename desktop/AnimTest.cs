@@ -70,11 +70,38 @@ public static class AnimTest
         var wrap = Onion.Plan(new OnionSettings { Enabled = true, Before = 3, After = 3 }, 0, 2);
         Check(wrap.Count == 1 && wrap[0].frame == 1, "short animation: one ghost, never itself");
 
-        var noWrap = Onion.Plan(new OnionSettings { Enabled = true, Before = 2, Wrap = false }, 0, 8);
+        var noWrap = Onion.Plan(new OnionSettings { Enabled = true, Before = 2, After = 0, Wrap = false }, 0, 8);
         Check(noWrap.Count == 0, "without wrap, frame 0 has nothing before it");
 
         Check(Onion.Plan(new OnionSettings { Enabled = false, Before = 2 }, 3, 8).Count == 0,
               "disabled onion skin plans nothing");
+
+        {
+            var doc = new Document(5, 1);
+            doc.InsertFrame(1, new FrameSpec());
+            doc.InsertFrame(2, new FrameSpec());
+            var animated = doc.Layers[0];
+            var background = doc.AddLayer("Background", 0);
+            background.Shared = true;
+            background.EnsureCel(0).Objects.Add(new RasterObject(
+                ImageOps.FromPixels(5, 1, Enumerable.Repeat((byte)255, 20).ToArray())));
+            var black = new byte[] { 0, 0, 0, 255 };
+            for (int i = 0; i < 3; i++)
+                animated.EnsureCel(i).Objects.Add(new RasterObject(ImageOps.FromPixels(1, 1, black)) { X = i });
+            animated.EnsureCel(0).Objects.Add(new RasterObject(ImageOps.FromPixels(1, 1, black)) { X = 1 });
+
+            var before = doc.RenderPixels(1);
+            using var composite = doc.RenderFrame(1);
+            using (var graphics = Graphics.FromImage(composite))
+                Onion.Draw(graphics, doc, new OnionSettings { Enabled = true, Opacity = 0.65f }, 1, new Rectangle(0, 0, 5, 1));
+            var past = composite.GetPixel(0, 0);
+            var future = composite.GetPixel(2, 0);
+            Check(past.R > past.B && future.B > future.R, "red and blue ghosts remain visible over a shared opaque background");
+            Check(composite.GetPixel(1, 0).ToArgb() == Color.Black.ToArgb(), "ghosts leave opaque current-frame art intact");
+            Check(composite.GetPixel(4, 0).ToArgb() == Color.White.ToArgb(), "the shared background itself is not ghosted");
+            Check(before.SequenceEqual(doc.RenderPixels(1)), "drawing onion skin leaves export pixels unchanged");
+            doc.Dispose();
+        }
 
         Console.WriteLine(_fails == 0 ? "all animation checks passed" : $"{_fails} CHECK(S) FAILED");
         return _fails == 0 ? 0 : 1;

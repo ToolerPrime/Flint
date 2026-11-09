@@ -1,5 +1,6 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace Flint;
 
@@ -14,11 +15,37 @@ public sealed class Frame
 /// <summary>Panel that paints without flicker.</summary>
 public sealed class CanvasPanel : Panel
 {
+    private const int WmWindowPosChanging = 0x0046;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoCopyBits = 0x0100;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowPosition
+    {
+        public nint Window, InsertAfter;
+        public int X, Y, Width, Height;
+        public uint Flags;
+    }
+
     public CanvasPanel()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
                  | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         AutoScroll = true;
+    }
+
+    protected override void WndProc(ref Message message)
+    {
+        base.WndProc(ref message);
+        if (message.Msg != WmWindowPosChanging || message.LParam == 0) return;
+
+        var position = Marshal.PtrToStructure<WindowPosition>(message.LParam);
+        if ((position.Flags & SwpNoSize) != 0 || (position.Width == Width && position.Height == Height)) return;
+
+        // A dock resize moves the native scrollbars as well as our paint surface.
+        // Repaint the new viewport instead of copying pixels from its old bounds.
+        position.Flags |= SwpNoCopyBits;
+        Marshal.StructureToPtr(position, message.LParam, false);
     }
 }
 
@@ -82,12 +109,11 @@ public sealed partial class MainForm : ThemedForm
                           _colors = null!, _sheetCols = null!, _brush = null!,
                           _fillTol = null!, _webmQuality = null!, _layerOpacity = null!;
     private ComboBox _blend = null!, _modeBox = null!, _speedBox = null!, _micBox = null!;
-    private NumericUpDown _onionBefore = null!, _onionAfter = null!, _onionOpacity = null!;
     private Button _recBtn = null!;
     private ProgressBar _level = null!;
     private CheckBox _applyAll = null!, _smooth = null!, _center = null!,
                      _dither = null!, _loop = null!, _onionBox = null!,
-                     _onionTint = null!, _includeAudio = null!, _rangeOnly = null!,
+                     _includeAudio = null!, _rangeOnly = null!,
                      _filled = null!, _sharedBox = null!;
     private Color _key = Color.Magenta;
     private bool _syncing;
@@ -95,8 +121,13 @@ public sealed partial class MainForm : ThemedForm
     private int DocW => _doc.Width;
     private int DocH => _doc.Height;
 
-    public MainForm()
+    public MainForm() : this(null) { }
+
+    internal MainForm(ProjectWindow? projectWindow, int projectNumber = 0)
     {
+        _projectWindow = projectWindow;
+        _untitledName = projectNumber > 0 ? $"Untitled-{projectNumber}" : "Untitled";
+        _recoverySession = projectWindow == null ? Recovery.Session : Guid.NewGuid().ToString("N");
         Text = "Flint";
         MinimumSize = new Size(1120, 700);
         Size = new Size(1380, 860);
@@ -111,19 +142,21 @@ public sealed partial class MainForm : ThemedForm
             ? DragDropEffects.Copy : DragDropEffects.None;
         DragDrop += (_, e) => HandleDrop(e);
         KeyDown += OnKey;
-        FormClosing += (_, e) =>
+        if (projectWindow == null)
         {
-            if (!ConfirmDiscard()) { e.Cancel = true; return; }
-            StopPlay();
-            _engine.Dispose();
-            Recovery.Clear();   // a clean exit leaves nothing to recover
-        };
+            FormClosing += (_, e) =>
+            {
+                if (!ConfirmProjectClose(this)) { e.Cancel = true; return; }
+                _engine.Dispose();
+                ClearProjectRecovery();
+            };
+        }
         _play.Tick += (_, _) => Advance();
         _autosave.Tick += (_, _) => Autosave();
         if (!Program.Headless)
         {
             _autosave.Start();
-            Shown += (_, _) => OfferRecovery();
+            if (projectWindow == null) Shown += (_, _) => OfferRecovery();
         }
         RefreshAll();
     }
@@ -159,16 +192,19 @@ public sealed partial class MainForm : ThemedForm
         var file = new ToolStripMenuItem("&File");
         Add(file, "&New canvas…", Keys.Control | Keys.N, NewCanvas);
         Add(file, "&Open…", Keys.Control | Keys.O, OpenProject);
+        file.DropDownItems.Add("Start page…", null, (_, _) => ShowStartPage());
+        if (_projectWindow != null)
+            Add(file, "&Close project", Keys.Control | Keys.W, () => _projectWindow.CloseProject(this));
         file.DropDownItems.Add(new ToolStripSeparator());
         Add(file, "&Save", Keys.Control | Keys.S, () => SaveProject(false));
         Add(file, "Save &as…", Keys.Control | Keys.Shift | Keys.S, () => SaveProject(true));
         file.DropDownItems.Add(new ToolStripSeparator());
         Add(file, "&Import images…", Keys.Control | Keys.R, ChooseFiles);
-        Add(file, "&Export…", Keys.Control | Keys.Shift | Keys.R, ExportAny);
+        Add(file, "&Export…", Keys.Control | Keys.Shift | Keys.R, ExportPreview);
         Add(file, "Export previe&w…", Keys.Control | Keys.Shift | Keys.X, ExportPreview);
         file.DropDownItems.Add("Export PNG se&quence…", null, (_, _) => ExportSequence());
         file.DropDownItems.Add(new ToolStripSeparator());
-        Add(file, "E&xit", Keys.Control | Keys.Q, Close);
+        Add(file, "E&xit", Keys.Control | Keys.Q, () => ProjectOwner.Close());
 
         var edit = new ToolStripMenuItem("&Edit");
         Add(edit, "&Undo", Keys.Control | Keys.Z, Undo);
@@ -198,6 +234,8 @@ public sealed partial class MainForm : ThemedForm
         Add(frameMenu, "&Paste frames", Keys.Control | Keys.Shift | Keys.V, PasteFrames);
         frameMenu.DropDownItems.Add("&Tag selection…", null, (_, _) => TagSelection());
         frameMenu.DropDownItems.Add("&Name frame…", null, (_, _) => RenameFrame(_cur));
+        frameMenu.DropDownItems.Add(new ToolStripSeparator());
+        AddOnionMenu(frameMenu);
 
         var audioMenu = new ToolStripMenuItem("&Audio");
         audioMenu.DropDownItems.Add("&Import audio…", null, (_, _) => ChooseAudio());
@@ -241,7 +279,13 @@ public sealed partial class MainForm : ThemedForm
         var bottom = _bottom = BuildTransport();
 
         _workspace = new Panel { Dock = DockStyle.Fill };
-        _workspace.Controls.Add(_canvas);
+        if (_projectWindow == null) _workspace.Controls.Add(_canvas);
+        else
+        {
+            _documentArea = new Panel { Dock = DockStyle.Fill, AccessibleName = "Project canvas area" };
+            _documentArea.Controls.Add(_canvas);
+            _workspace.Controls.Add(_documentArea);
+        }
         BuildDocking(box, inspector, bottom, tools, optionsBar);
         Controls.Add(_workspace);
         Controls.Add(menu);
@@ -404,14 +448,14 @@ public sealed partial class MainForm : ThemedForm
         var g = e.Graphics;
         int w = DocW * _zoom, h = DocH * _zoom;
         var o = CanvasOrigin();
-        DrawChecker(g, new Rectangle(o.X, o.Y, w, h));
+        var dest = new Rectangle(o.X, o.Y, w, h);
+        DrawChecker(g, dest, e.ClipRectangle);
 
         g.InterpolationMode = InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = PixelOffsetMode.Half;
 
-        Onion.Draw(g, _doc, _onionSet, _cur, new Rectangle(o.X, o.Y, w, h));
-
-        g.DrawImage(Composite(), new Rectangle(o.X, o.Y, w, h));
+        g.DrawImage(Composite(), dest);
+        if (!_play.Enabled) Onion.Draw(g, _doc, _onionSet, _cur, dest);
 
         using (var pen = new Pen(Color.FromArgb(96, 100, 110)))
             g.DrawRectangle(pen, o.X - 1, o.Y - 1, w + 1, h + 1);
@@ -432,14 +476,18 @@ public sealed partial class MainForm : ThemedForm
         PaintRulersAndGuides(g, o);
     }
 
-    private static void DrawChecker(Graphics g, Rectangle r)
+    private static void DrawChecker(Graphics g, Rectangle r, Rectangle clip)
     {
+        var visible = Rectangle.Intersect(r, clip);
+        if (visible.Width <= 0 || visible.Height <= 0) return;
+
         using var light = new SolidBrush(Color.FromArgb(80, 82, 90));
         using var dark = new SolidBrush(Color.FromArgb(66, 68, 76));
-        g.FillRectangle(light, r);
+        g.FillRectangle(light, visible);
         const int s = 8;
-        for (int y = 0; y * s < r.Height; y++)
-            for (int x = 0; x * s < r.Width; x++)
+        // Keep the pattern anchored to the artwork when scrolling or painting a strip.
+        for (int y = (visible.Top - r.Top) / s; y * s < visible.Bottom - r.Top; y++)
+            for (int x = (visible.Left - r.Left) / s; x * s < visible.Right - r.Left; x++)
             {
                 if (((x + y) & 1) == 0) continue;
                 g.FillRectangle(dark, new Rectangle(
@@ -1003,76 +1051,90 @@ public sealed partial class MainForm : ThemedForm
     }
 
     private void UpdateTitle() =>
-        Text = (_path == null ? "Untitled" : Path.GetFileName(_path)) + (_dirty ? " *" : "") + " — Flint";
+        Text = ProjectTabTitle + " — Flint";
 
     /// <summary>Set by headless tests: a modal prompt would block forever.</summary>
     internal bool SuppressPrompts;
 
-    private bool ConfirmDiscard()
+    private bool ConfirmDiscard(IWin32Window? owner = null)
     {
         if (!_dirty || SuppressPrompts || Program.Headless) return true;
-        var r = MessageBox.Show(this, "Save changes to this project first?", "Flint",
+        var r = MessageBox.Show(owner ?? ProjectOwner, $"Save changes to {ProjectName} first?", "Flint",
             MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
         if (r == DialogResult.Cancel) return false;
         return r != DialogResult.Yes || SaveProject(false);
     }
 
-    private void NewCanvas()
+    private void NewCanvas() => TryNewCanvas(this);
+
+    internal NewCanvasDialog MakeNewCanvasDialog()
     {
-        if (!ConfirmDiscard()) return;
-        using var dlg = new NewCanvasDialog(DocW, DocH);
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        using var image = GetClipboardImage();
+        return new NewCanvasDialog(image?.Width ?? DocW, image?.Height ?? DocH, image != null);
+    }
+
+    private bool TryNewCanvas(IWin32Window owner)
+    {
+        if (_projectWindow == null && !ConfirmDiscard(owner)) return false;
+        using var dlg = MakeNewCanvasDialog();
+        if (dlg.ShowDialog(owner) != DialogResult.OK) return false;
+        if (_projectWindow == null) CreateCanvas(dlg.CanvasWidth, dlg.CanvasHeight, dlg.Transparent);
+        else _projectWindow.CreateProject(dlg.CanvasWidth, dlg.CanvasHeight, dlg.Transparent);
+        return true;
+    }
+
+    internal void CreateCanvas(int width, int height, bool transparent)
+    {
         StopPlay();
         _undo.Clear();
         _doc.Dispose();
-        _doc = new Document(dlg.CanvasWidth, dlg.CanvasHeight);
-        if (!dlg.Transparent)
-        {
-            var r = _doc.Layers[0].EnsureCel(0).EnsureRaster(DocW, DocH);
-            using var g = Graphics.FromImage(r.Pixels);
-            g.Clear(_bg);
-        }
-        _cur = 0;
-        _activeLayer = 0;
+        _doc = new Document(width, height);
+        if (!transparent) _doc.Layers.Insert(0, MakeCanvasBackground(_bg));
+        _cur = _selStart = _selEnd = 0;
+        _activeLayer = _doc.Layers.Count - 1;
         _selection = null;
-        _path = null;
+        _path = _sourcePath = null;
         _dirty = false;
         _undo.Clear();
-        Recovery.Clear();
+        ClearProjectRecovery();
         FitZoom();
         InvalidateComposite();
         RefreshAll();
         Say($"new {DocW}×{DocH} canvas");
     }
 
-    private void OpenProject()
+    private void OpenProject() => TryOpenProject(this);
+
+    private bool TryOpenProject(IWin32Window owner)
     {
-        if (!ConfirmDiscard()) return;
+        if (_projectWindow == null && !ConfirmDiscard(owner)) return false;
         using var dlg = new OpenFileDialog
         {
             Filter = "Flint project or Fireworks PNG|*.flint;*.png|All files|*.*", Title = "Open project",
         };
-        if (dlg.ShowDialog(this) == DialogResult.OK) OpenAny(dlg.FileName);
+        return dlg.ShowDialog(owner) == DialogResult.OK && OpenInProjectTab(dlg.FileName);
     }
 
-    private void LoadProject(string path)
+    private bool LoadProject(string path)
     {
         var result = FlintFormat.Load(path);
         if (!result.Ok)
         {
-            MessageBox.Show(this, result.Error, "Could not open", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (!Program.Headless) MessageBox.Show(this, result.Error, "Could not open", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             Say("open failed: " + result.Error);
-            return;
+            return false;
         }
         StopPlay();
         _undo.Clear();
-        Recovery.Clear();
+        ClearProjectRecovery();
         _doc.Dispose();
         _doc = result.Document!;
-        _cur = 0;
+        _cur = _selStart = _selEnd = 0;
         _activeLayer = _doc.Layers.Count - 1;
         _selection = null;
-        _path = path;
+        _path = Path.GetFullPath(path);
+        _sourcePath = null;
+        Theme.RememberProject(path);
         _dirty = false;
         _undo.Clear();
         FitZoom();
@@ -1081,6 +1143,7 @@ public sealed partial class MainForm : ThemedForm
         Say(result.Warnings.Count > 0
             ? $"opened with warnings: {string.Join("; ", result.Warnings)}"
             : $"opened {Path.GetFileName(path)}");
+        return true;
     }
 
     private bool SaveProject(bool forceAsk)
@@ -1095,8 +1158,14 @@ public sealed partial class MainForm : ThemedForm
                 FileName = Path.GetFileNameWithoutExtension(_path ?? "") is { Length: > 0 } n ? n : "untitled",
                 DefaultExt = "flint",
             };
-            if (dlg.ShowDialog(this) != DialogResult.OK) return false;
+            if (dlg.ShowDialog(ProjectOwner) != DialogResult.OK) return false;
             target = dlg.FileName;
+        }
+        if (_projectWindow?.PathInUse(this, Path.GetFullPath(target)) == true)
+        {
+            if (!Program.Headless) MessageBox.Show(ProjectOwner, "This file is open in another tab. Choose a different name.",
+                "Could not save", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
         }
         try
         {
@@ -1108,9 +1177,11 @@ public sealed partial class MainForm : ThemedForm
                 if (!ok) throw new IOException(msg);
             }
             else FlintFormat.Save(_doc, target);
-            _path = target;
+            _path = Path.GetFullPath(target);
+            _sourcePath = null;
+            Theme.RememberProject(target);
             _dirty = false;
-            Recovery.Clear();
+            ClearProjectRecovery();
             UpdateTitle();
             Say($"saved {Path.GetFileName(target)}");
             return true;
@@ -1350,7 +1421,7 @@ public sealed partial class MainForm : ThemedForm
     {
         if (paths.Length == 1 && paths[0].EndsWith(FlintFormat.Extension, StringComparison.OrdinalIgnoreCase))
         {
-            if (ConfirmDiscard()) LoadProject(paths[0]);
+            if (_projectWindow != null || ConfirmDiscard()) OpenInProjectTab(paths[0]);
             return;
         }
         var audio = paths.Where(AudioIO.IsAudio).ToArray();
@@ -1527,6 +1598,7 @@ public sealed partial class MainForm : ThemedForm
         _play.Interval = 15;
         _play.Start();
         _playBtn.Text = "Stop";
+        if (_onionSet.Enabled) _canvas.Invalidate();
     }
 
     private double _clockOffsetMs;
@@ -1541,7 +1613,9 @@ public sealed partial class MainForm : ThemedForm
 
     private void StopPlay()
     {
+        bool wasPlaying = _play.Enabled;
         _play.Stop();
+        if (wasPlaying && _onionSet.Enabled) _canvas.Invalidate();
         _clock.Stop();
         _engine.Stop();
         _playAudio = false;
@@ -1715,14 +1789,14 @@ public sealed partial class MainForm : ThemedForm
         if (!_dirty || _dragging || _play.Enabled || MouseButtons != MouseButtons.None) return;
         try
         {
-            Recovery.Write(_doc, _path);
+            Recovery.Write(_doc, _path, _recoverySession);
             _lastAutosave = DateTime.Now;
             UpdateInfo(null);
         }
         catch (Exception ex) { Say("autosave failed: " + ex.Message); }
     }
 
-    private void OfferRecovery()
+    internal void OfferRecovery(Func<MainForm>? newTab = null)
     {
         List<Recovery.Entry> orphans;
         try { orphans = Recovery.Orphans(); } catch { return; }
@@ -1742,21 +1816,28 @@ public sealed partial class MainForm : ThemedForm
                     "Recover work", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 continue;
             }
-            _undo.Clear();
-            _doc.Dispose();
-            _doc = loaded.Document!;
-            _cur = 0;
-            _activeLayer = _doc.Layers.Count - 1;
-            _path = e.OriginalPath;          // Save goes back to where it came from
-            _dirty = true;                   // it is not saved there yet
-            FitZoom();
-            InvalidateComposite();
-            RefreshAll();
-            // Re-protect it under this session before removing the old copy.
-            try { Recovery.Write(_doc, _path); Recovery.Discard(e); } catch { }
-            Say($"recovered {e.Display} — save it to keep it");
-            return;
+            var target = newTab?.Invoke() ?? this;
+            target.RestoreRecovery(e, loaded.Document!);
+            if (newTab == null) return;
         }
+    }
+
+    private void RestoreRecovery(Recovery.Entry entry, Document document)
+    {
+        _undo.Clear();
+        _doc.Dispose();
+        _doc = document;
+        _cur = _selStart = _selEnd = 0;
+        _activeLayer = _doc.Layers.Count - 1;
+        _path = entry.OriginalPath;
+        _sourcePath = null;
+        _dirty = true;
+        FitZoom();
+        InvalidateComposite();
+        RefreshAll();
+        // Re-protect the accepted document before removing the previous copy.
+        try { Recovery.Write(_doc, _path, _recoverySession); Recovery.Discard(entry); } catch { }
+        Say($"recovered {entry.Display} — save it to keep it");
     }
 
     #endregion

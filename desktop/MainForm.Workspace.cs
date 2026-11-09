@@ -70,7 +70,7 @@ public sealed partial class MainForm
 
     private void BuildDocking(Control tools, List<(string name, Control content, Size min)> inspector, Control timeline, Control mainToolbar, Control optionsBar)
     {
-        _docks = new DockManager(this, _workspace) { Default = BuiltInLayouts[0].make(), Prompt = AskName };
+        _docks = new DockManager(this, _workspace, _projectWindow) { Default = BuiltInLayouts[0].make(), Prompt = AskName };
         _docks.AddPage("Main toolbar", mainToolbar, new Size(300, 32), 32);
         _docks.AddPage("Tool options", optionsBar, new Size(300, 40), 40);
         _docks.AddPage("Tools", tools, new Size(60, 200));
@@ -80,7 +80,7 @@ public sealed partial class MainForm
         try { _docks.Apply(start ?? _docks.Default); }
         catch (Exception ex) when (start != null) { Say("Your saved workspace could not be restored, so the default is shown (" + ex.Message + ")"); _docks.Apply(_docks.Default); }
         if (start != null) foreach (var c in _docks.Columns(DockSide.Bottom)) c.UserSized = true;
-        FormClosing += (_, e) => { if (!e.Cancel && !Program.Headless) Theme.LastWorkspace = _docks.Capture(); };
+        FormClosing += (_, e) => { if (!e.Cancel && !Program.Headless && _projectWindow == null) Theme.LastWorkspace = _docks.Capture(); };
         BuildWindowMenu();
     }
 
@@ -230,15 +230,23 @@ public sealed partial class MainForm
         }
         if (colour is { } c)
         {
-            var layer = new Layer { Name = BackgroundLayerName, Shared = true, Locked = true };
-            var pixels = new byte[checked(DocW * DocH * 4)];
-            for (int i = 0; i < pixels.Length; i += 4) { pixels[i] = c.B; pixels[i + 1] = c.G; pixels[i + 2] = c.R; pixels[i + 3] = 255; }
-            layer.EnsureCel(0).Objects.Add(new RasterObject(ImageOps.FromPixels(DocW, DocH, pixels)) { Name = BackgroundObjectName });
-            _doc.Layers.Insert(0, layer);
+            _doc.Layers.Insert(0, MakeCanvasBackground(c));
         }
         if (_doc.Layers.Count == 0) _doc.Layers.Add(new Layer { Name = "Layer 1" });
         _activeLayer = Math.Max(0, _doc.Layers.IndexOf(active));
         PushStructure(colour == null ? "clear canvas background" : "canvas background colour", before);
+    }
+
+    private Layer MakeCanvasBackground(Color colour)
+    {
+        var layer = new Layer { Name = BackgroundLayerName, Shared = true, Locked = true };
+        var pixels = new byte[checked(DocW * DocH * 4)];
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            pixels[i] = colour.B; pixels[i + 1] = colour.G; pixels[i + 2] = colour.R; pixels[i + 3] = 255;
+        }
+        layer.EnsureCel(0).Objects.Add(new RasterObject(ImageOps.FromPixels(DocW, DocH, pixels)) { Name = BackgroundObjectName });
+        return layer;
     }
 
     internal void TestCanvasBackground(Color? c) => SetCanvasBackground(c);

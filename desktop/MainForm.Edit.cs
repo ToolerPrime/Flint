@@ -1069,7 +1069,7 @@ public sealed partial class MainForm
         if (files.Length == 1 && (Mods & Keys.Shift) == 0 && files[0].EndsWith(".png", StringComparison.OrdinalIgnoreCase)
             && Importer.HasFireworksChunks(files[0]))
         {
-            if (ConfirmDiscard()) OpenFireworks(files[0]);
+            if (_projectWindow != null || ConfirmDiscard()) OpenInProjectTab(files[0]);
             return;
         }
         if (overCanvas && files.Length == 1 && (Mods & Keys.Shift) == 0 && Importer.IsImage(files[0])
@@ -1248,7 +1248,9 @@ public sealed partial class MainForm
     /// </summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (_projectWindow?.HandleProjectKey(keyData) == true) return true;
         if (TryProductivityShortcut(keyData)) return true;
+        if (TryProjectMenuKey(keyData)) return true;
         if ((keyData == Keys.Enter || keyData == Keys.Escape) && (_xf != null || _cropRect != null)
             && ActiveControl is not TextBoxBase)
         {

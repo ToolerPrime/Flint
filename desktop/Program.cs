@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Flint;
 
@@ -27,6 +27,13 @@ internal static class Program
             AttachConsole(-1);
             ApplicationConfiguration.Initialize();
             return EditableObjectsTest.Run();
+        }
+
+        if (args.Length >= 1 && args[0] == "--projecttabstest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return ProjectTabsTest.Run(args.Length > 1 ? args[1] : null);
         }
 
         if (args.Length >= 1 && args[0] == "--workspacetest")
@@ -199,9 +206,10 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        var form = new MainForm();
+        var form = new ProjectWindow();
         // A file given on launch (double-click, "Open with", dropped on Flint.exe).
-        if (args.Length >= 1 && File.Exists(args[0])) form.Shown += (_, _) => form.OpenAny(Path.GetFullPath(args[0]));
+        string? path = args.Length >= 1 && File.Exists(args[0]) ? Path.GetFullPath(args[0]) : null;
+        form.Shown += (_, _) => form.StartSession(path);
         Application.Run(form);
         return 0;
     }

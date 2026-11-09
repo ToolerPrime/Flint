@@ -24,6 +24,44 @@ public static class CanvasTest
         form.Show();
         Application.DoEvents();
 
+        using (var clipboard = new Bitmap(37, 23))
+        {
+            form.TestClipboard = clipboard;
+            using var suggested = form.MakeNewCanvasDialog();
+            Check(suggested.CanvasWidth == 37 && suggested.CanvasHeight == 23, "New Canvas uses clipboard image dimensions");
+            form.CreateCanvas(suggested.CanvasWidth, suggested.CanvasHeight, false);
+            var project = form.TestDocument;
+            Check(project.Width == 37 && project.Height == 23 && project.Layers[0].Shared && project.Layers[0].Locked,
+                "New Canvas creates an editable canvas above a shared opaque background");
+            form.TestClipboard = null;
+            using var fallback = form.MakeNewCanvasDialog();
+            Check(fallback.CanvasWidth == project.Width && fallback.CanvasHeight == project.Height,
+                "New Canvas without an image uses the current canvas size");
+        }
+
+        string recentPath = Path.Combine(Path.GetTempPath(), $"flint-start-{Guid.NewGuid():N}.flint");
+        try
+        {
+            Check(form.TestSaveViaEditor(recentPath) && Theme.RecentProjects.FirstOrDefault() == recentPath,
+                "Saving a project adds it to the top of Recent projects");
+            Check(form.OpenAny(recentPath) && Theme.RecentProjects.Count(p => p == recentPath) == 1,
+                "Reopening a project moves it to the top without a duplicate");
+            using var page = form.MakeStartPage();
+            Check(page.Controls.OfType<ListBox>().Single().Items[0]?.ToString() == Path.GetFileName(recentPath),
+                "Start page lists the saved project by name");
+            if (Environment.GetEnvironmentVariable("FLINT_START_SHOT") is { Length: > 0 } shot)
+            {
+                page.StartPosition = FormStartPosition.Manual;
+                page.Location = new Point(-6000, -6000);
+                page.Show(); Application.DoEvents();
+                using var bmp = new Bitmap(page.Width, page.Height);
+                page.DrawToBitmap(bmp, new Rectangle(Point.Empty, page.Size));
+                bmp.Save(shot);
+                page.Close();
+            }
+        }
+        finally { File.Delete(recentPath); }
+
         var red = Color.FromArgb(255, 220, 40, 40);
 
         // Pencil stroke along a row.

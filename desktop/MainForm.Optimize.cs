@@ -17,8 +17,18 @@ public sealed partial class MainForm
     {
         FinishFloat();
         StopPlay();
-        using var dlg = new OptimizeDialog(OptimizeSource());
-        if (dlg.ShowDialog(this) != DialogResult.OK || dlg.Chosen == null) return;
+        const long maxPreviewBytes = 128L * 1024 * 1024;
+        if ((long)DocW * DocH * 4 * _doc.FrameCount > maxPreviewBytes)
+        {
+            MessageBox.Show(this, "This project is too large for export preview. Choose an export format to continue.",
+                "Export preview", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ExportAny();
+            return;
+        }
+        using var dlg = new OptimizeDialog(OptimizeSource(), showOtherFormats: true);
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (dlg.OtherFormatsChosen) { ExportAny(); return; }
+        if (dlg.Chosen == null) return;
         var s = dlg.Chosen;
         var (kind, filter) = KindFor(s);
         using var save = new SaveFileDialog
@@ -110,7 +120,7 @@ public sealed partial class MainForm
     }
 
     // ---------- test hooks ----------
-    internal OptimizeDialog TestOptimizeDialog() => new(OptimizeSource());
+    internal OptimizeDialog TestOptimizeDialog() => new(OptimizeSource(), showOtherFormats: true);
     internal string TestRunOptimized(OptSettings s, string path, Color matte)
     {
         var (kind, _) = KindFor(s);

@@ -259,6 +259,11 @@ print(json.dumps(out))
                 Wait(dlg);
                 Check(dlg.Pane(1).Result?.Bytes > 0 && dlg.Pane(1).Error == "", $"WebP lossy pane: {dlg.Pane(1).SizeText}");
             }
+            var more = dlg.Controls.OfType<FlowLayoutPanel>().Single().Controls.OfType<Button>()
+                .Single(b => b.Text == "More formats…");
+            more.PerformClick();
+            Check(dlg.OtherFormatsChosen && dlg.DialogResult == DialogResult.OK && dlg.Chosen == null,
+                "More formats routes to the full export list without choosing a preview preset");
             dlg.Close();
         }
 

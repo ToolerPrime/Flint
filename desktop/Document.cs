@@ -623,13 +623,13 @@ public sealed class Document
     /// GDI+, so a pixel drawn on one layer at full opacity comes out exactly as
     /// drawn — partial alpha included. GDI+ altered most semi-transparent pixels.
     /// </summary>
-    public byte[] RenderPixels(int frame, int? skipLayer = null)
+    public byte[] RenderPixels(int frame, int? skipLayer = null, bool omitShared = false)
     {
         var target = new byte[Width * Height * 4];
         for (int i = 0; i < Layers.Count; i++)
         {
             var l = Layers[i];
-            if (!l.Visible || i == skipLayer) continue;
+            if (!l.Visible || i == skipLayer || (omitShared && l.Shared)) continue;
             var cel = l.CelAt(frame);
             if (cel == null) continue;
 

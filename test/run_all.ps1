@@ -1,4 +1,4 @@
-﻿# Full test suite. Run from the test folder.
+# Full test suite. Run from the test folder.
 $ErrorActionPreference = "Stop"
 $exe = "..\desktop\bin\Debug\net8.0-windows\Flint.exe"
 $out = "out-cs"
@@ -6,6 +6,10 @@ New-Item -ItemType Directory -Force $out | Out-Null
 
 Write-Host "--- building ---"
 dotnet build ..\desktop -v q --nologo
+
+Write-Host "`n--- project tabs ---"
+& $exe --projecttabstest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "projecttabstest failed" }
 
 Write-Host "`n--- workspace panels, canvas background, pixel snapping ---"
 & $exe --workspacetest | Out-Host

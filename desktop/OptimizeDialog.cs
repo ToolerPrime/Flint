@@ -376,9 +376,10 @@ internal sealed class OptimizeDialog : Form
     private int _mode = 2, _frame;
 
     public OptSettings? Chosen { get; private set; }
+    public bool OtherFormatsChosen { get; private set; }
     public Color Matte => _src.Matte;
 
-    public OptimizeDialog(OptSource src)
+    public OptimizeDialog(OptSource src, bool showOtherFormats = false)
     {
         _src = src;
         Text = "Export preview";
@@ -409,9 +410,21 @@ internal sealed class OptimizeDialog : Form
         _play.Click += (_, _) => TogglePlay();
         _matte.Click += (_, _) => PickMatte();
         _matte.BackColor = src.Matte;
-        var close = new Button { Text = "Close", AutoSize = true };
-        close.Click += (_, _) => Close();
-        bar.Controls.AddRange(new Control[] { zo, zi, fit, _play, _matte, _info, close });
+        var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel,
+            AccessibleName = "Close export preview" };
+        CancelButton = close;
+        bar.Controls.AddRange(new Control[] { zo, zi, fit, _play, _matte });
+        if (showOtherFormats)
+        {
+            var more = new Button { Text = "More formats…", AutoSize = true,
+                AccessibleName = "Export video, sprite sheets and other formats" };
+            more.Click += (_, _) => { OtherFormatsChosen = true; DialogResult = DialogResult.OK; };
+            bar.Controls.Add(more);
+            var tips = Theme.MakeTip();
+            tips.SetToolTip(more, "Export video, sprite sheets, audio and other formats");
+            Disposed += (_, _) => tips.Dispose();
+        }
+        bar.Controls.AddRange(new Control[] { close, _info });
 
         foreach (int i in Enumerable.Range(0, 4))
         {

@@ -6,13 +6,14 @@ namespace Flint;
 public sealed partial class MainForm
 {
     /// <summary>File > Open for either kind of file. A plain PNG is not opened: Import places it.</summary>
-    internal void OpenAny(string path)
+    internal bool OpenAny(string path)
     {
-        if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) { LoadProject(path); return; }
-        if (Importer.HasFireworksChunks(path)) { OpenFireworks(path); return; }
+        if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return LoadProject(path);
+        if (Importer.HasFireworksChunks(path)) return OpenFireworks(path);
         const string msg = "This PNG has no Fireworks layers in it, so it is not a document. Use Import (File > Import) to place it as a picture.";
         if (!Program.Headless) MessageBox.Show(this, msg, "Open", MessageBoxButtons.OK, MessageBoxIcon.Information);
         Say(Path.GetFileName(path) + ": not a Fireworks document. Use Import instead.");
+        return false;
     }
 
     internal bool OpenFireworks(string path)
@@ -28,13 +29,15 @@ public sealed partial class MainForm
         }
         StopPlay();
         _undo.Clear();
-        Recovery.Clear();
+        ClearProjectRecovery();
         _doc.Dispose();
         _doc = imp.Doc;
-        _cur = 0;
+        _cur = _selStart = _selEnd = 0;
         _activeLayer = _doc.Layers.Count - 1;
         _selection = null;
-        _path = null;          // untitled: Save asks for a .flint name
+        Theme.RememberProject(path);
+        _sourcePath = Path.GetFullPath(path);
+        _path = null;          // Save asks for a .flint name
         _dirty = true;
         FitZoom();
         InvalidateComposite();
