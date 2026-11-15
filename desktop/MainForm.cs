@@ -230,7 +230,7 @@ public sealed partial class MainForm : ThemedForm
         frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunMotionTween());
         frameMenu.DropDownItems.Add("De&lete frame", null, (_, _) => DeleteFrame());
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
-        frameMenu.DropDownItems.Add("&Reverse order", null, (_, _) => ReverseOrder());
+        AddFrameHelperMenus(frameMenu);
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
         Add(frameMenu, "&Copy frames", Keys.Control | Keys.Shift | Keys.C, CopyFrames);
         Add(frameMenu, "&Paste frames", Keys.Control | Keys.Shift | Keys.V, PasteFrames);
@@ -1245,15 +1245,6 @@ public sealed partial class MainForm : ThemedForm
         PushStructure("reorder frames", before);
     }
 
-    private void ReverseOrder()
-    {
-        var before = Before();
-        for (int i = 0, j = _doc.FrameCount - 1; i < j; i++, j--) _doc.SwapFrames(i, j);
-        _cur = _doc.FrameCount - 1 - _cur;
-        PushStructure("reverse frames", before);
-        Say("order reversed");
-    }
-
     private void SetFrameDelay(int ms)
     {
         if (_doc.Frames[_cur].Delay == ms) return;
@@ -2004,6 +1995,9 @@ public sealed partial class MainForm : ThemedForm
         m.Items.Add(new ToolStripSeparator());
         m.Items.Add("Name frame…", null, (_, _) => RenameFrame(f));
         m.Items.Add("Tag selection…", null, (_, _) => TagSelection());
+        var inc = new ToolStripMenuItem("Include when exporting") { Checked = _doc.Frames[f].Export };
+        inc.Click += (_, _) => SetFramesExported(!_doc.Frames[f].Export);
+        m.Items.Add(inc);
         var tag = _doc.Tags.FirstOrDefault(t => f >= t.Start && f <= t.End);
         if (tag != null)
             m.Items.Add($"Remove tag '{tag.Name}'", null, (_, _) =>

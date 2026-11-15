@@ -144,6 +144,11 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Time-scaled timeline | Working | Frame width = duration, so audio lines up |
 | Drag to reorder, drag edge to retime | Working | |
 | Insert, duplicate, copy, paste, delete frames | Working | |
+| Add Frames dialog | Working | How many, before/after the current frame or at the end, empty or copies |
+| Animate Selection | Working | Frames, move distance and direction, scale to %, opacity from/to, rotate clockwise or counter-clockwise; makes ordinary frames (not a symbol) |
+| Distribute to Frames, Copy to Frames | Working | Each selected object to its own frame; copies to all, previous, next or a range of frames |
+| Reverse Frames | Working | All frames or a range |
+| Include when exporting (per frame) | Working | Every exporter skips left-out frames, and video sound drops their part too; saved in .flint (format 11) |
 | Frame names | Working | Double-click |
 | Animation tags (Idle, Walk…) | Working | Follow their frames when frames move |
 | Onion skin | Working | Before/after counts, opacity, red/blue tint |

@@ -163,6 +163,15 @@ public sealed partial class TimelinePanel
                 g.PixelOffsetMode = PixelOffsetMode.Default;
             }
 
+            if (!_doc!.Frames[i].Export)
+            {
+                // Left out of exports (Fireworks' "Include when exporting" off): dim it and cross the thumbnail.
+                using var veil = new SolidBrush(Color.FromArgb(150, Theme.Panel2));
+                g.FillRectangle(veil, tbox);
+                using var x = new Pen(Theme.Muted, 2);
+                g.DrawLine(x, tbox.Left + 4, tbox.Top + 4, tbox.Right - 4, tbox.Bottom - 4);
+                g.DrawLine(x, tbox.Right - 4, tbox.Top + 4, tbox.Left + 4, tbox.Bottom - 4);
+            }
             string name = _doc!.Frames[i].Name;
             string label = name.Length > 0 ? $"{i + 1}  {name}" : $"{i + 1}";
             TextRenderer.DrawText(g, label, small, new Rectangle(r.X + 6, r.Y + ThumbTop + ThumbH + 1, r.Width - 10, 14),

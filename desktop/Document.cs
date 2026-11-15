@@ -374,10 +374,12 @@ public sealed class FrameSpec
     /// <summary>Origin point for game engines, in canvas pixels. Null = none set.</summary>
     public Point? Pivot;
     public readonly List<Hitbox> Hitboxes = new();
+    /// <summary>Fireworks' "Include when exporting". Off = every exporter skips this frame.</summary>
+    public bool Export = true;
 
     public FrameSpec Clone()
     {
-        var f = new FrameSpec { Delay = Delay, Name = Name, Pivot = Pivot };
+        var f = new FrameSpec { Delay = Delay, Name = Name, Pivot = Pivot, Export = Export };
         foreach (var h in Hitboxes) f.Hitboxes.Add(h.Clone());
         return f;
     }
@@ -411,6 +413,10 @@ public sealed class Document
     public IReadOnlyList<Guide> Guides = Array.Empty<Guide>();
 
     public int FrameCount => Frames.Count;
+
+    /// <summary>Frames from..to that are exported. A single-frame range always counts (exporting "the current frame").</summary>
+    public IEnumerable<int> ExportedFrames(int from, int to) =>
+        Enumerable.Range(from, Math.Max(0, to - from + 1)).Where(i => from == to || Frames[i].Export);
     public int LayerCount => Layers.Count;
 
     public Document(int width, int height)
@@ -491,7 +497,20 @@ public sealed class Document
         order.Insert(to, from);
         var perm = new int[n];
         for (int i = 0; i < n; i++) perm[order[i]] = i;
+        Permute(perm);
+    }
 
+    /// <summary>Reverse frames from..to (inclusive) in one reordering, so tags keep their own frames.</summary>
+    public void ReverseFrames(int from, int to)
+    {
+        var perm = Enumerable.Range(0, Frames.Count).Select(i => i >= from && i <= to ? from + to - i : i).ToArray();
+        Permute(perm);
+    }
+
+    /// <summary>Reorder frames: perm[old] = new index. Cels and tags follow.</summary>
+    public void Permute(int[] perm)
+    {
+        int n = Frames.Count;
         var frames = Frames.ToArray();
         for (int i = 0; i < n; i++) Frames[perm[i]] = frames[i];
 

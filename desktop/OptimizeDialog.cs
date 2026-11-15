@@ -34,6 +34,9 @@ internal sealed class OptSource
     public int W, H, Current;
     public Color Matte = Color.White;
     public bool Loop = true;
+    /// <summary>The current frame when it is left out of animated exports; stills still use it.</summary>
+    public byte[]? Still;
+    public byte[] CurrentPixels => Still ?? Frames[Current];
 }
 
 internal sealed class OptResult
@@ -69,7 +72,7 @@ internal static class OptimizeEncoder
     {
         int w = src.W, h = src.H, n = src.Frames.Length;
         bool multi = n > 1;
-        var cur = src.Frames[src.Current];
+        var cur = src.CurrentPixels;
         OptResult R(byte[] data, byte[][] preview, string note) =>
             new() { Bytes = data.Length, Data = data, Preview = preview, Note = note };
         string frames = multi ? $", {n} frames" : "";
@@ -365,7 +368,7 @@ internal sealed class OptPane : Panel
     }
 
     /// <summary>The frames a pane's colours come from (PNG-8 takes the current one).</summary>
-    internal IList<byte[]> PaletteFrames(OptFormat f) => f == OptFormat.Png8 ? new[] { _src.Frames[_src.Current] } : _src.Frames;
+    internal IList<byte[]> PaletteFrames(OptFormat f) => f == OptFormat.Png8 ? new[] { _src.CurrentPixels } : _src.Frames;
 
     private void ShowColourTable()
     {

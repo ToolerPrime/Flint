@@ -35,6 +35,10 @@ Write-Host "`n--- motion tween, frame insertion, undo and persistence ---"
 & $exe --motiontweentest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "motiontweentest failed" }
 
+Write-Host "`n--- frame helpers: animate, distribute, copy, reverse, add, include when exporting ---"
+& $exe --framehelperstest "$out\frames" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "framehelperstest failed" }
+
 Write-Host "`n--- audio: mixer, decoding, storage, sync ---"
 & $exe --audiotest "$out\audio" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "audiotest failed" }

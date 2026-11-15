@@ -169,6 +169,13 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--framehelperstest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return FrameHelpersTest.Run(args.Length >= 2 ? args[1] : "framehelperstest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--interchangetest")
         {
             AttachConsole(-1);

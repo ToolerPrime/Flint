@@ -163,9 +163,23 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Video import holds frames in memory: about 2 GB at most; choose a lower
   frame rate or a shorter range for long videos.
 
+## Frame helpers
+
+- Animate Selection and the motion tween make ordinary frames, not an
+  animation symbol, so changing the animation later means editing frames
+  (editable tweens are planned). Rotation and scaling resample the object
+  each frame from its original, so pixel art turned by angles that are not
+  quarter turns gets soft or jagged edges.
+- Distribute to Frames and Copy to Frames work on the selected objects of one
+  layer; they refuse shared layers.
+- Exporting a single frame (PNG, JPEG and other stills) ignores "Include when
+  exporting", so you can still export a left-out frame on its own. WAV audio
+  export is the whole timeline's sound; videos and atlas sound skip left-out
+  frames. Saving as an editable Fireworks PNG does not keep the setting.
+
 ## Format
 
-- `.flint` is at version 10. Builds older than a file's version refuse it
+- `.flint` is at version 11. Builds older than a file's version refuse it
   with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides

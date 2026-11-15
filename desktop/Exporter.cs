@@ -43,6 +43,8 @@ public static class Exporter
         if (j.Kind == ExportKind.Atlas) return SaveAtlas(j, p);
         if (j.Kind == ExportKind.Aseprite) return AsepriteFile.Write(j.Doc, j.Path, j.From, j.To);
 
+        // One-frame formats export exactly the current frame, wherever it is and whatever its export flag.
+        if (j.Kind == ExportKind.Png || StillExport.IsStill(j.Kind)) { j.From = j.To = j.Current; }
         var frames = Render(j, p, ct);
         try
         {
@@ -125,14 +127,16 @@ public static class Exporter
     public static List<Frame> Render(ExportJob j, IProgress<(double, string)>? p, CancellationToken ct)
     {
         var list = new List<Frame>();
-        int n = j.To - j.From + 1;
+        var which = j.Doc.ExportedFrames(j.From, j.To).ToList();
+        if (which.Count == 0) throw new InvalidOperationException("every frame in this range is set not to export (Frame > Include when exporting)");
+        int n = which.Count;
         try
         {
-            for (int i = j.From; i <= j.To; i++)
+            foreach (int i in which)
             {
                 ct.ThrowIfCancellationRequested();
                 list.Add(new Frame(j.Doc.RenderFrame(i), j.Doc.Frames[i].Delay));
-                p?.Report((0.4 * (i - j.From + 1) / n, $"rendering frame {i - j.From + 1} of {n}"));
+                p?.Report((0.4 * list.Count / n, $"rendering frame {list.Count} of {n}"));
             }
             return list;
         }
@@ -148,9 +152,19 @@ public static class Exporter
     {
         if (!j.IncludeAudio || j.Doc.Audio.IsEmpty) return null;
         var d = j.Doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
-        double start = Playback.FrameStart(d, j.From);
-        double end = Playback.FrameStart(d, j.To + 1);
-        return AudioMixer.Mix(j.Doc.Audio, start, end - start);
+        var which = j.Doc.ExportedFrames(j.From, j.To).ToList();
+        if (which.Count == j.To - j.From + 1)
+        {
+            double start = Playback.FrameStart(d, j.From);
+            double end = Playback.FrameStart(d, j.To + 1);
+            return AudioMixer.Mix(j.Doc.Audio, start, end - start);
+        }
+        // Frames left out take their sound with them, so picture and sound stay together.
+        var parts = which.Select(i => AudioMixer.Mix(j.Doc.Audio, Playback.FrameStart(d, i), d[i])).ToList();
+        var all = new float[parts.Sum(p => p.Length)];
+        int at = 0;
+        foreach (var p in parts) { Array.Copy(p, 0, all, at, p.Length); at += p.Length; }
+        return all;
     }
 
     /// <summary>

@@ -152,7 +152,7 @@ public static class Sprites
     {
         int fw = doc.Width, fh = doc.Height;
         var entries = new List<(int frame, Rectangle trim, string hash, byte[] px)>();
-        for (int f = from; f <= to; f++)
+        foreach (int f in doc.ExportedFrames(from, to))
         {
             var px = doc.RenderPixels(f);
             var trim = ContentRect(px, fw, fh);
@@ -221,13 +221,15 @@ public static class Sprites
             frames[name] = node;
         }
 
+        // Tags count only exported frames (frames left out shift the rest down).
+        var kept = doc.ExportedFrames(from, to).ToList();
         var tags = new JsonArray();
-        foreach (var t in doc.Tags.Where(t => t.End >= from && t.Start <= to))
+        foreach (var (t, k) in doc.Tags.Select(t => (t, k: kept.Select((f, i) => (f, i)).Where(x => x.f >= t.Start && x.f <= t.End).Select(x => x.i).ToList())).Where(x => x.k.Count > 0))
             tags.Add(new JsonObject
             {
                 ["name"] = t.Name,
-                ["from"] = Math.Max(t.Start, from) - from,
-                ["to"] = Math.Min(t.End, to) - from,
+                ["from"] = k[0],
+                ["to"] = k[^1],
                 ["direction"] = "forward",
                 ["color"] = $"#{t.Colour.R:x2}{t.Colour.G:x2}{t.Colour.B:x2}ff",
             });
@@ -282,26 +284,35 @@ public static class Sprites
     public static string AudioCues(Document doc, int from, int to, string wavName)
     {
         var d = doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
+        // The WAV holds only exported frames' sound, back to back; map timeline times onto it.
+        var kept = doc.ExportedFrames(from, to).ToList();
+        var outStart = new double[kept.Count];
+        for (int i = 1; i < kept.Count; i++) outStart[i] = outStart[i - 1] + d[kept[i - 1]];
         double start = Playback.FrameStart(d, from), end = Playback.FrameStart(d, to + 1);
+        double total = kept.Sum(f => (double)d[f]);
         var clips = new JsonArray();
         foreach (var t in doc.Audio.Tracks)
             foreach (var c in t.Clips)
             {
                 if (c.EndMs <= start || c.StartMs >= end) continue;
-                int frame = Playback.FrameAt(d, (int)Math.Max(c.StartMs, start));
+                // First exported frame the clip sounds in.
+                int k = kept.FindIndex(f => Playback.FrameStart(d, f) + d[f] > c.StartMs && Playback.FrameStart(d, f) < c.EndMs);
+                if (k < 0) continue;                                   // only on left-out frames
+                double fs = Playback.FrameStart(d, kept[k]);
                 clips.Add(new JsonObject
                 {
                     ["track"] = t.Name, ["clip"] = c.Name,
-                    ["startMs"] = Math.Round(c.StartMs - start, 3),
+                    ["startMs"] = Math.Round(outStart[k] + Math.Max(0, c.StartMs - fs), 3),
                     ["lengthMs"] = Math.Round(c.LengthMs, 3),
-                    ["startFrame"] = frame - from,
+                    ["startFrame"] = k,
                     ["muted"] = t.Muted,
                 });
             }
+        end = start + total;
         var root = new JsonObject
         {
             ["audio"] = wavName,
-            ["note"] = "Times are from the first exported frame. The WAV is the full mix of this range.",
+            ["note"] = "Times are from the first exported frame. The WAV is the mix of the exported frames, back to back.",
             ["durationMs"] = end - start,
             ["clips"] = clips,
         };

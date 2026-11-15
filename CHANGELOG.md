@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — frame helpers from Fireworks
+
+- Frame > Animate selection: turn the selected object into an animation over a number of frames: move it a distance in a direction, scale it, fade it, and spin it clockwise or counter-clockwise.
+- Frame > Distribute to frames: each selected object goes to its own frame, in stacking order, adding frames if needed.
+- Frame > Copy to frames: copy the selected objects to all frames, the previous or next frame, or a range.
+- Frame > Reverse frames: reverse all frames or just a range. (Replaces Reverse order.)
+- Frame > Add frames: add any number of frames before or after the current one or at the end, empty or as copies.
+- Include when exporting: untick it for a frame (Frame menu or right-click a frame) and every animation export (GIF, APNG, WebP, video, sprite sheet, atlas, Aseprite, HTML) leaves that frame out, including its part of the sound in videos. Left-out frames are crossed out in the timeline. Saved in the project (format 11; older projects still open).
+
 ## Unreleased — video host formats, Aseprite files, HTML page, video import
 
 - New export formats: MOV (H.264), MOV ProRes 4444 (keeps transparency, for editors and Vimeo), MKV (H.264) and animated AVIF.

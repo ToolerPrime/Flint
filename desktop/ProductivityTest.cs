@@ -22,7 +22,7 @@ public static class ProductivityTest
         form.TestUngroupObjects();
         Check(form.TestSelectedObject!.GroupPath.Count==1, "ungroup removes one nesting level");
         string path=Path.Combine(Path.GetTempPath(),$"flint-group-{Guid.NewGuid():N}.flint");
-        try { FlintFormat.Save(form.TestDocument,path); var loaded=FlintFormat.Load(path); Check(FlintFormat.CurrentVersion==10 && ((RasterObject)loaded.Document!.Layers[0].CelAt(0)!.Objects[0]).GroupPath.Count==1,"format 10 round-trips group membership"); loaded.Document?.Dispose(); }
+        try { FlintFormat.Save(form.TestDocument,path); var loaded=FlintFormat.Load(path); Check(FlintFormat.CurrentVersion>=10 && ((RasterObject)loaded.Document!.Layers[0].CelAt(0)!.Objects[0]).GroupPath.Count==1,"format 10 round-trips group membership"); loaded.Document?.Dispose(); }
         finally { File.Delete(path); }
         form.TestSelectObjects(0,1); using var before=form.TestDocument.RenderFrame(0); form.TestFlattenObjects(); using var after=form.TestDocument.RenderFrame(0);
         Check(ImageOps.GetPixels(before).SequenceEqual(ImageOps.GetPixels(after)) && form.TestDocument.Layers[0].CelAt(0)!.Objects.Count==1,"flatten selection preserves appearance");

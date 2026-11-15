@@ -41,7 +41,9 @@ public static class AsepriteFile
     public static string Write(Document doc, string path, int from = 0, int to = -1)
     {
         if (to < 0) to = doc.FrameCount - 1;
-        int n = to - from + 1;
+        var which = doc.ExportedFrames(from, to).ToList();
+        int n = which.Count;
+        if (n == 0) throw new InvalidOperationException("every frame in this range is set not to export");
         if (doc.Width > 65535 || doc.Height > 65535) throw new InvalidOperationException("Aseprite files are limited to 65535 pixels a side");
         var lost = new HashSet<string>();
         using var ms = new MemoryStream();
@@ -57,10 +59,11 @@ public static class AsepriteFile
         w.Write((short)0); w.Write((short)0); w.Write((ushort)16); w.Write((ushort)16);
         w.Write(new byte[84]);
 
-        for (int f = from; f <= to; f++)
+        int firstKept = which[0];
+        foreach (int f in which)
         {
             var chunks = new List<byte[]>();
-            if (f == from)
+            if (f == firstKept)
             {
                 chunks.Add(Chunk(0x2019, c =>
                 {
@@ -79,15 +82,17 @@ public static class AsepriteFile
                         Str(c, l.Name);
                     }));
                 }
-                if (doc.Tags.Count > 0)
+                // Tags land on the exported frames they cover; a tag with none left is dropped.
+                var tags = doc.Tags.Select(t => (t, kept: which.Select((fi, k) => (fi, k)).Where(x => x.fi >= t.Start && x.fi <= t.End).Select(x => x.k).ToList()))
+                                   .Where(x => x.kept.Count > 0).ToList();
+                if (tags.Count > 0)
                 {
-                    var tags = doc.Tags.Where(t => t.End >= from && t.Start <= to).ToList();
                     chunks.Add(Chunk(0x2018, c =>
                     {
                         c.Write((ushort)tags.Count); c.Write(new byte[8]);
-                        foreach (var t in tags)
+                        foreach (var (t, kept) in tags)
                         {
-                            c.Write((ushort)(Math.Max(t.Start, from) - from)); c.Write((ushort)(Math.Min(t.End, to) - from));
+                            c.Write((ushort)kept[0]); c.Write((ushort)kept[^1]);
                             c.Write((byte)0); c.Write((ushort)0); c.Write(new byte[6]);
                             c.Write(t.Colour.R); c.Write(t.Colour.G); c.Write(t.Colour.B); c.Write((byte)0);
                             Str(c, t.Name);
@@ -100,7 +105,7 @@ public static class AsepriteFile
                 var l = doc.Layers[li];
                 var cel = l.CelAt(f);
                 if (cel == null) continue;
-                if (l.Shared && f > from)
+                if (l.Shared && f > firstKept)
                 {
                     // Fireworks' shared layer is Aseprite's linked cel.
                     chunks.Add(Chunk(0x2005, c => { CelHead(c, li, 0, 0, 1); c.Write((ushort)0); }));

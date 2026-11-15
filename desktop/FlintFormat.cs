@@ -33,9 +33,10 @@ public static class FlintFormat
     /// 8: ruler guides (a "guides" list of {vertical, pos}).
     /// 9: editable primitive and text source properties on rendered objects.
     /// 10: nested logical group paths on objects.
+    /// 11: per-frame "export": false for frames left out of exports.
     /// Older versions load unchanged; their missing fields take defaults.
     /// </summary>
-    public const int CurrentVersion = 10;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
+    public const int CurrentVersion = 11;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
     public const string Extension = ".flint";
 
     public sealed class LoadResult
@@ -68,6 +69,7 @@ public static class FlintFormat
                 foreach (var f in doc.Frames)
                 {
                     var fn = new JsonObject { ["delay"] = f.Delay, ["name"] = f.Name };
+                    if (!f.Export) fn["export"] = false;
                     if (f.Pivot is { } pv) fn["pivot"] = new JsonObject { ["x"] = pv.X, ["y"] = pv.Y };
                     if (f.Hitboxes.Count > 0)
                         fn["hitboxes"] = new JsonArray(f.Hitboxes.Select(h => (JsonNode)new JsonObject
@@ -226,6 +228,7 @@ public static class FlintFormat
                 {
                     Delay = f?["delay"]?.GetValue<int>() ?? 100,
                     Name = f?["name"]?.GetValue<string>() ?? "",
+                    Export = f?["export"]?.GetValue<bool>() ?? true,
                 };
                 if (f?["pivot"] is JsonNode pv)
                     spec.Pivot = new Point(pv["x"]?.GetValue<int>() ?? 0, pv["y"]?.GetValue<int>() ?? 0);
