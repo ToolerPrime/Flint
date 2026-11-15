@@ -231,3 +231,17 @@ content and a fresh undo stack; Done stores a new master, rebuilds every
 instance (`SymbolOps.Refresh`) and pushes one structure edit. Instances are
 saved without pixels and rebuilt from the master on load. See
 `desktop/Symbols.cs` and `desktop/MainForm.Symbols.cs`.
+
+## Paths (format 15)
+
+A path object is a `RasterObject` whose `Vector` art carries the editable
+source in `VectorArt.Path` (`PathSource`: subpaths of nodes with absolute
+bezier handles, fill, stroke, centred stroke width; immutable). The art's
+shapes (fill, then stroke pieces) are built from it by `PathSources.Create`
+and drawn by `Tracer.Render`, so pixels are exact and transforms re-render
+from the source like any vector object; `With()` drops `Vector`, so a
+destructive edit leaves plain pixels. Edits always build a new object from
+the source (`PathSources.Replace`). Combine/Alter (`PathOps`) render inputs to
+an 8x mask, combine or offset it (exact distance transform), trace it back
+(`Tracer.Trace`) and refit curves (`PathFit`, translated from VectorCraft).
+See `desktop/PathSource.cs`, `desktop/PathOps.cs`, `desktop/MainForm.Pen.cs`.

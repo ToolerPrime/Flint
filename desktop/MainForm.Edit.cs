@@ -286,6 +286,12 @@ public sealed partial class MainForm
     {
         // Working on the canvas takes keyboard focus away from side-panel controls.
         if (!_canvas.Focused) _canvas.Focus();
+        if (_tool == Tool.Pen) return PenDown(e);
+        if (_tool == Tool.Subselect)
+        {
+            if (SubDown(e)) return true;
+            _tool = Tool.ObjectSelect; _subBorrow = true;     // on an object: pick and move it as the Object tool does
+        }
         switch (_tool)
         {
             case Tool.Marquee:
@@ -361,6 +367,8 @@ public sealed partial class MainForm
 
     private bool EditMove(MouseEventArgs e, Point p)
     {
+        if (_tool == Tool.Pen && PenMove(e)) return true;      // also tracks the hover line
+        if (_tool == Tool.Subselect && SubMove(e)) return true;
         if (!_dragging) return false;
         if (_primitiveDrawing)
         {
@@ -418,8 +426,13 @@ public sealed partial class MainForm
         return false;
     }
 
+    private bool _subBorrow;
+
     private bool EditUp(MouseEventArgs e, Point p)
     {
+        if (_subBorrow) { _subBorrow = false; try { return EditUp(e, p); } finally { _tool = Tool.Subselect; } }
+        if (_tool == Tool.Pen && PenUp(e)) return true;
+        if (_tool == Tool.Subselect && SubUp(e)) return true;
         if (_primitiveDrawing)
         {
             _primitiveDrawing = false; _dragging = false; _shapeDraft = null;
@@ -1261,6 +1274,8 @@ public sealed partial class MainForm
         if (_projectWindow?.HandleProjectKey(keyData) == true) return true;
         if (TryProductivityShortcut(keyData)) return true;
         if (TryProjectMenuKey(keyData)) return true;
+        // Only when the canvas has the keyboard: number boxes, lists and text keep their own keys.
+        if (_canvas.Focused && (PenKey(keyData) || SubKey(keyData))) return true;
         if ((keyData == Keys.Enter || keyData == Keys.Escape) && (_xf != null || _cropRect != null)
             && ActiveControl is not TextBoxBase)
         {
@@ -1286,7 +1301,7 @@ public sealed partial class MainForm
                 if (_cropRect != null) { _cropRect = null; _canvas.Invalidate(); Say("crop cancelled"); return true; }
                 if (_lasso != null) { _lasso = null; _dragging = false; _canvas.Invalidate(); return true; }
                 return false;
-            case Keys.Left or Keys.Right or Keys.Up or Keys.Down when _tool is Tool.ObjectSelect or Tool.Move or Tool.Transform:
+            case Keys.Left or Keys.Right or Keys.Up or Keys.Down when _tool is Tool.ObjectSelect or Tool.Move or Tool.Transform or Tool.Subselect:
             {
                 int step = e.Shift ? 10 : 1;
                 Nudge(e.KeyCode == Keys.Left ? -step : e.KeyCode == Keys.Right ? step : 0,

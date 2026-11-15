@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — pen tool and path commands
+
+- Pen tool (P): click for corner points, drag for smooth curves, click the first point to close the shape, Enter or Esc to finish an open path, Backspace to take back a point. Tick filled for a solid shape; anti-alias for smooth edges.
+- Subselection tool (A): drag a path's points and handles (a smooth point stays smooth; Alt breaks it), drag a box to select points, arrow keys nudge, Delete removes points, double-click the outline to add one. Rectangles and ovals become paths when you edit their points.
+- Edit > Combine path: Union, Intersect, Punch and Crop. Edit > Alter path: Simplify, Expand stroke and Inset path.
+- Double-click a path with the Object tool to change its fill, stroke and stroke width.
+- Saved in the project (format 15; older projects still open). The curve fitting is translated from VectorCraft (see CREDITS_LICENSES.md).
+
 ## Unreleased — symbols
 
 - Edit > Symbol > Convert to symbol (F8): the selected objects become a symbol, kept in the library under Symbols, and are replaced by one instance. A symbol has its own frames.

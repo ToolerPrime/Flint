@@ -11,6 +11,7 @@ public enum Tool
 {
     Pencil, Eraser, Fill, Line, Rectangle, Ellipse, Marquee, Eyedropper, Pan, Pivot, Hitbox,
     Move, Transform, Crop, EllipseSelect, Lasso, Wand, Gradient, Text, Clone, ObjectSelect, Brush,
+    Pen, Subselect,
 }
 
 public sealed class Surface

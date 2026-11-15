@@ -169,6 +169,13 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--pathtest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return PathTest.Run(args.Length >= 2 ? args[1] : "pathtest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--symboltest")
         {
             AttachConsole(-1);
@@ -181,6 +188,12 @@ internal static class Program
             AttachConsole(-1);
             ApplicationConfiguration.Initialize();
             return GridTest.Run(args.Length >= 2 ? args[1] : "gridtest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--pathfittest")
+        {
+            AttachConsole(-1);
+            return PathFitTest.Run();
         }
 
         if (args.Length >= 1 && args[0] == "--tweentest")

@@ -37,9 +37,10 @@ public static class FlintFormat
     /// 12: editable tween spans per layer ("tweens").
     /// 13: document grid ("grid": show, snap, spacing, offset, colour).
     /// 14: symbol masters ("symbols", each with frames and layers) and instances (objects with "symbol", no image).
+    /// 15: editable bezier paths ("path" inside a vector object: subpaths of nodes, fill, stroke, width).
     /// Older versions load unchanged; their missing fields take defaults.
     /// </summary>
-    public const int CurrentVersion = 14;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
+    public const int CurrentVersion = 15;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
     public const string Extension = ".flint";
 
     public sealed class LoadResult
@@ -652,6 +653,7 @@ public static class FlintFormat
         }
         var o = new JsonObject { ["w"] = a.W, ["h"] = a.H, ["shapes"] = shapes };
         if (a.KeepOrder) o["keepOrder"] = true;   // optional: older files lack it
+        if (a.Path != null) o["path"] = a.Path.ToJson();   // editable source (format 15); the shapes above stay the drawing
         return o;
     }
 
@@ -682,7 +684,8 @@ public static class FlintFormat
 
     private static VectorArt VectorFromJson(JsonObject n)
     {
-        var a = new VectorArt { W = n["w"]?.GetValue<int>() ?? 0, H = n["h"]?.GetValue<int>() ?? 0, KeepOrder = n["keepOrder"]?.GetValue<bool>() ?? false };
+        var a = new VectorArt { W = n["w"]?.GetValue<int>() ?? 0, H = n["h"]?.GetValue<int>() ?? 0, KeepOrder = n["keepOrder"]?.GetValue<bool>() ?? false,
+                                Path = PathSource.FromJson(n["path"] as JsonObject) };
         foreach (var sn in n["shapes"]?.AsArray() ?? new JsonArray())
         {
             var sh = new VShape { Colour = sn!["c"]!.GetValue<uint>() };

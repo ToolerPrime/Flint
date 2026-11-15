@@ -216,9 +216,33 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Autosave while a symbol is open saves the project as it was before the
   symbol was opened.
 
+## Paths
+
+- Combine path and Inset/Expand work on a mask with 8 samples per pixel,
+  then fit smooth curves: straight edges on whole pixels come back exact,
+  curved edges can move by about a tenth of a pixel, details finer than 1/8
+  px are lost, and results have more points than Fireworks gives. Very large
+  shapes use fewer samples per pixel. (A shape-clipping library would make
+  these exact; adding one needs your approval.)
+- Strokes are centred with round corners and ends; there are no inside or
+  outside strokes or other joins yet. Scaling a path scales its stroke.
+- Fill is even-odd: a path that crosses itself leaves a hole where it
+  overlaps.
+- Rectangles and ovals edited with Subselection or combined become paths;
+  their width/height settings no longer apply (as in Fireworks).
+- Paths in Fireworks PNG files still open as plain vector pictures, not
+  editable paths. Gradient fills on paths are not offered.
+- The A key now picks Subselection (as in Fireworks). On objects that are not
+  paths, and on a path's body, it picks, moves, nudges and deletes like the
+  Object tool. Grouped paths need Alt-click (as with the Object tool) before
+  their points can be edited.
+- Pen points snap to whole pixels (pixel centres for odd-width outlines, so
+  a 1 px line is one pixel wide); point drags move by whole pixels or grid
+  steps, while handles move freely.
+
 ## Format
 
-- `.flint` is at version 14. Builds older than a file's version refuse it
+- `.flint` is at version 15. Builds older than a file's version refuse it
   with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides

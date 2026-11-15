@@ -129,7 +129,7 @@ public static class SymbolTest
             var nest = FlintFormat.Load(path);
             Check(nest.Ok && nest.Warnings.Any(w => w.Contains("inside a symbol")), "a symbol inside a symbol is dropped with a note (not supported)");
             FlintFormat.Save(d, path);
-            Patch(path, j => { j["format"] = 15; return j; });
+            Patch(path, j => { j["format"] = FlintFormat.CurrentVersion + 1; return j; });
             Check(!FlintFormat.Load(path).Ok, "a newer format is refused");
             FlintFormat.Save(d, path);
             Patch(path, j => { j["symbols"]![0]!["width"] = 0; return j; });

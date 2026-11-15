@@ -94,6 +94,8 @@ public sealed partial class MainForm
             [Tool.Clone] = ("clone", "Clone", "Rubber stamp (S): Alt+click the source, then paint"),
             [Tool.Text] = ("text", "Text", "Text (T): click where it goes"),
             [Tool.Line] = ("line", "Line", "Line (N)"),
+            [Tool.Pen] = ("pen", "Pen", "Pen (P): click for corners, drag for curves, click the first point to close; Enter finishes"),
+            [Tool.Subselect] = ("subselect", "Subsel", "Subselection (A): drag points and handles of a path; double-click the outline to add a point; Delete removes points"),
             [Tool.Rectangle] = ("rect", "Rect", "Rectangle (U)"),
             [Tool.Ellipse] = ("ellipse", "Oval", "Oval (U twice)"),
             [Tool.Pivot] = ("pivot", "Pivot", "Pivot point for game export"),
@@ -103,7 +105,7 @@ public sealed partial class MainForm
         {
             ("Select", new[] { Tool.ObjectSelect, Tool.Move, Tool.Transform, Tool.Crop, Tool.Marquee, Tool.EllipseSelect, Tool.Lasso, Tool.Wand }),
             ("Bitmap", new[] { Tool.Pencil, Tool.Brush, Tool.Eraser, Tool.Fill, Tool.Gradient, Tool.Clone, Tool.Eyedropper, Tool.Text }),
-            ("Vector", new[] { Tool.Line, Tool.Rectangle, Tool.Ellipse }),
+            ("Vector", new[] { Tool.Pen, Tool.Subselect, Tool.Line, Tool.Rectangle, Tool.Ellipse }),
             ("Web / Game", new[] { Tool.Pivot, Tool.Hitbox }),
             ("View", new[] { Tool.Pan }),
         };
@@ -171,6 +173,8 @@ public sealed partial class MainForm
         _brush = Num(0, 0, 50, 1, 1, 64);
         _filled = new MintCheckBox { Text = "filled", Width = 62, Height = 22 };
         _editableShapes = new MintCheckBox { Text = "editable", Width = 82, Height = 22, Checked = true };
+        _pathSmooth = new MintCheckBox { Text = "anti-alias", Width = 86, Height = 22, Checked = true };
+        _tips.SetToolTip(_pathSmooth, "Smooth path edges. Untick for hard pixel edges");
         _tips.SetToolTip(_editableShapes, "Keep rectangles and ellipses editable. Pixel selections and mask painting use raster shapes.");
         var lTol = L("Tolerance", 62);
         _fillTol = Num(0, 0, 52, 0, 0, 255);
@@ -186,7 +190,7 @@ public sealed partial class MainForm
 
         flow.Controls.Add(Flow(_optTitle, 36, 4));
         var brushOpts = BuildBrushOptions();
-        var all = new Control[] { _optNone, lSize, _brush, _filled, _editableShapes, lTol, _fillTol, _contiguous, lRes, _resample, lGrad, _gradType };
+        var all = new Control[] { _optNone, lSize, _brush, _filled, _editableShapes, _pathSmooth, lTol, _fillTol, _contiguous, lRes, _resample, lGrad, _gradType };
         all = all.Concat(brushOpts).ToArray();
         foreach (var c in all) flow.Controls.Add(Flow(c, 36));
         _optControls.AddRange(all);
@@ -197,6 +201,7 @@ public sealed partial class MainForm
         _toolOptions[Tool.Clone] = _toolOptions[Tool.Pencil];
         _toolOptions[Tool.Rectangle] = new Control[] { lSize, _brush, _filled, _editableShapes };
         _toolOptions[Tool.Ellipse] = _toolOptions[Tool.Rectangle];
+        _toolOptions[Tool.Pen] = new Control[] { lSize, _brush, _filled, _pathSmooth };
         _toolOptions[Tool.Fill] = new Control[] { lTol, _fillTol };
         _toolOptions[Tool.Wand] = new Control[] { lTol, _fillTol, _contiguous };
         _toolOptions[Tool.Gradient] = new Control[] { lGrad, _gradType };

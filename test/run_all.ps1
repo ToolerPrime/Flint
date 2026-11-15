@@ -35,6 +35,12 @@ Write-Host "`n--- motion tween, frame insertion, undo and persistence ---"
 & $exe --motiontweentest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "motiontweentest failed" }
 
+Write-Host "`n--- paths: pen, subselection, combine and alter path ---"
+& $exe --pathfittest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "pathfittest failed" }
+& $exe --pathtest "$out\path" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "pathtest failed" }
+
 Write-Host "`n--- symbols: convert, edit, instances, break apart, tween instances, format 14 ---"
 & $exe --symboltest "$out\sym" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "symboltest failed" }

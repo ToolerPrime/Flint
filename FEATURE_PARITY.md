@@ -15,8 +15,8 @@ test or a verified check. A button that exists is not a feature.
 with audio. New rectangles/ellipses and text retain editable source properties,
 and Object (Q) selects objects and nested groups. Bitmap layer masks, live effects, guides,
 export preview and movable workspace groups also exist. It is not a complete
-Fireworks replacement: pen/node editing, object distribution,
-linked symbols and advanced Auto Shapes remain missing.
+Fireworks replacement: object distribution and advanced Auto Shapes remain
+missing; pen paths and symbols are newer and less tested by hand.
 
 **Testing caveat:** every "Working" below is verified by automated tests that
 drive the real code headless, plus rendered screenshots of the real window.
@@ -30,7 +30,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | New document | Working | Any size, transparent or filled |
 | Open / Save / Save As | Working | Native `.flint`, atomic, round trip tested |
 | Autosave and crash recovery | Working | Every 60 s while unsaved; tested by killing a real process |
-| Multiple open documents | Missing | One document per window |
+| Multiple open documents | Working | Projects open side by side as tabs |
 | Canvas size | Working | Anchor centre or top-left |
 | Image size (resample) | Working | Nearest-neighbour (exact) or smooth |
 | Transparent background | Working | |
@@ -77,11 +77,11 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Line, rectangle, ellipse | Partial | New rectangles/ellipses retain editable geometry/colour/fill/stroke; line remains raster. Object (Q) selects one object |
-| Pen, Bézier paths, node editing | Missing | Model reserves an object kind for it |
+| Pen, Bézier paths, node editing | Working | Pen (P): click corners, drag curves, close on the first point. Subselection (A): drag points and handles (smooth points stay smooth, Alt breaks them), box-select, Delete, double-click to add a point. Fill/stroke editable afterwards; rectangles and ovals turn into paths when edited this way; saved in .flint (format 15) |
 | Polygon, freeform | Missing | |
 | Stroke / fill properties, gradients, patterns | Missing | |
 | Align, distribute, group | Partial | Multi-object canvas alignment and nested per-cel grouping; distribution and isolated group blending remain missing |
-| Boolean path operations | Missing | |
+| Boolean path operations | Working | Combine path: Union, Intersect, Punch, Crop. Alter path: Simplify, Expand stroke, Inset path. Computed on an 8x-detailed mask and refitted to smooth curves (straight edges on whole pixels stay exact) |
 | Trace bitmap to vectors | Working | Colours, minimum area, smoothing, simplify, smooth or hard edges, live preview; exact at smoothing 0; shapes stay sharp when scaled or rotated |
 | Auto Shapes | Missing | |
 

@@ -22,6 +22,18 @@ Windows Media Foundation) AAC, WMA and FLAC. Version 2.2.1, MIT licence.
 Bundled inside the self-contained executable.
 https://github.com/naudio/NAudio
 
+### VectorCraft — ArtCraft Team and the VectorCraft contributors
+
+`desktop/PathFit.cs` translates the least-squares cubic curve fitter (with
+Newton reparameterisation) from VectorCraft (https://github.com/storytold/vectorcraft),
+`crates/pathops/src/fit.rs`. It is used to turn combined, inset and
+simplified outlines back into smooth curves. The Pen and Subselection tools
+were written for Flint, using VectorCraft's pen documentation only as a
+behaviour guide. Copyright (c) 2026 ArtCraft Team and the VectorCraft
+contributors. Used under the MIT licence (VectorCraft is MIT or Apache-2.0 at
+the user's option); the MIT notice below under PhotoCraft applies equally.
+The ArtCraft name and logos are not used in Flint.
+
 ### EffectCraft — ArtCraft Team and the EffectCraft contributors
 
 `desktop/Easing.cs` translates the cubic-bezier time solve (Newton steps with

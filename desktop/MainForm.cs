@@ -258,6 +258,7 @@ public sealed partial class MainForm : ThemedForm
         MainMenuStrip = menu;
         BuildEditMenus(menu, edit, layerMenu);
         AddSymbolMenus(edit);
+        AddPathMenus(edit);
 
         var tools = BuildToolStrip();
         var statusBar = new StatusStrip();
@@ -278,6 +279,7 @@ public sealed partial class MainForm : ThemedForm
         _canvas.MouseWheel += CanvasWheel;
         _canvas.MouseDoubleClick += (_, e) =>
         {
+            if (SubDoubleClick(e)) return;
             if (_tool == Tool.ObjectSelect && PickObject(ToImage(e.X, e.Y)))
             {
                 if (SelectedInstance is { Symbol: { } s } && !EditingSymbol) EnterSymbolEdit(s.Id);   // Fireworks/Animate: double-click a symbol to edit it
@@ -326,6 +328,7 @@ public sealed partial class MainForm : ThemedForm
     private void SetTool(Tool t)
     {
         if (t != _tool && _xf != null) CommitTransform();
+        if (t != Tool.Pen && _pen != null) FinishPen(false);
         if (t != Tool.Crop) _cropRect = null;
         _tool = t;
         StyleToolButtons();
@@ -336,6 +339,7 @@ public sealed partial class MainForm : ThemedForm
             Tool.Eyedropper or Tool.Marquee or Tool.Pivot or Tool.Hitbox or Tool.EllipseSelect
                 or Tool.Lasso or Tool.Wand or Tool.Crop or Tool.Clone => Cursors.Cross,
             Tool.Move or Tool.ObjectSelect => Cursors.SizeAll,
+            Tool.Pen => Cursors.Cross,
             Tool.Text => Cursors.IBeam,
             _ => Cursors.Default,
         };
@@ -348,6 +352,8 @@ public sealed partial class MainForm : ThemedForm
             Tool.Fill => "Fill: click a region",
             Tool.Line => "Line: drag",
             Tool.Rectangle => "Rectangle: drag; tick filled for solid",
+            Tool.Pen => "Pen: click for corners, drag for smooth curves; click the first point to close, Enter or Esc to finish open. Tick filled for a solid shape",
+            Tool.Subselect => "Subselection: click a path, then drag its points and handles (Alt breaks a smooth point). Double-click the outline to add a point; Delete removes points",
             Tool.Ellipse => "Oval: drag; tick filled for solid",
             Tool.Marquee => "Select: drag a box. Edits stay inside it.",
             Tool.Eyedropper => "Eyedropper: click to take a colour",
@@ -487,6 +493,7 @@ public sealed partial class MainForm : ThemedForm
 
         PaintEditOverlay(g, o);
         PaintObjectOutline(g, o);
+        PaintPathOverlay(g, o);
         PaintRulersAndGuides(g, o);
     }
 
@@ -1720,7 +1727,7 @@ public sealed partial class MainForm : ThemedForm
             case Keys.Right: StepFrame(1); e.Handled = true; break;
             case Keys.Escape: _selection = null; _canvas.Invalidate(); e.Handled = true; break;
             case Keys.Delete or Keys.Back:
-                if (_tool == Tool.ObjectSelect) { if (SelectedObject != null) DeleteSelectedObject(); else Say("Pick an object first."); }
+                if (_tool is Tool.ObjectSelect or Tool.Subselect) { if (SelectedObject != null) DeleteSelectedObject(); else Say("Pick an object first."); }
                 else if (_tool == Tool.Hitbox) ClearHitboxes(); else ClearSelection();
                 e.Handled = true; break;
         }
