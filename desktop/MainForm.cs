@@ -476,6 +476,7 @@ public sealed partial class MainForm : ThemedForm
                 g.DrawLine(grid, o.X, o.Y + y * _zoom, o.X + w, o.Y + y * _zoom);
         }
 
+        PaintGrid(g, o);
         PaintGuides(g, o);
 
         PaintEditOverlay(g, o);

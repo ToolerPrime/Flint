@@ -35,6 +35,10 @@ Write-Host "`n--- motion tween, frame insertion, undo and persistence ---"
 & $exe --motiontweentest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "motiontweentest failed" }
 
+Write-Host "`n--- grid: snapping, drawing, saved per document ---"
+& $exe --gridtest "$out\grid" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "gridtest failed" }
+
 Write-Host "`n--- tweens: easing, curved paths, editable spans ---"
 & $exe --tweentest "$out\tween" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "tweentest failed" }

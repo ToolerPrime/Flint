@@ -35,9 +35,10 @@ public static class FlintFormat
     /// 10: nested logical group paths on objects.
     /// 11: per-frame "export": false for frames left out of exports.
     /// 12: editable tween spans per layer ("tweens").
+    /// 13: document grid ("grid": show, snap, spacing, offset, colour).
     /// Older versions load unchanged; their missing fields take defaults.
     /// </summary>
-    public const int CurrentVersion = 12;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
+    public const int CurrentVersion = 13;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
     public const string Extension = ".flint";
 
     public sealed class LoadResult
@@ -91,6 +92,7 @@ public static class FlintFormat
                     });
                 manifest["tags"] = tags;
                 if (doc.Guides.Count > 0) manifest["guides"] = GuideSet.ToJson(doc.Guides);
+                if (doc.Grid != GridSpec.Default) manifest["grid"] = doc.Grid.ToJson();
 
                 var layers = new JsonArray();
                 foreach (var l in doc.Layers)
@@ -305,6 +307,7 @@ public static class FlintFormat
                 });
 
             doc.Guides = GuideSet.FromJson(root["guides"] as JsonArray);
+            doc.Grid = GridSpec.FromJson(root["grid"]);
 
             foreach (var ln in root["layers"]?.AsArray() ?? new JsonArray())
             {

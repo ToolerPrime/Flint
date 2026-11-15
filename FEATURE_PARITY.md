@@ -38,6 +38,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Rulers | Working | Toggle through View; guide suite verifies painting and coordinates |
 | Guides, snapping | Working | Ruler guides, canvas edges/centre and optional pixel snapping; audio clips snap to frame starts |
 | Pixel grid | Working | From 8× zoom |
+| Grid with snapping | Working | View > Grid: show, snap, spacing across/down, offset, colour; marquee, shapes and Move snap to it (guides close by win); saved per document (.flint format 13) |
 | Canvas rotation | Missing | |
 | Zoom | Working | Integer 1–32×; Ctrl+wheel around the cursor; actual pixels; fit on screen |
 | Clipboard (cut/copy/paste pixels) | Working | Cut, copy, copy merged, paste to a new layer; PNG with alpha for other apps |

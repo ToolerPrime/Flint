@@ -169,6 +169,13 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--gridtest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return GridTest.Run(args.Length >= 2 ? args[1] : "gridtest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--tweentest")
         {
             AttachConsole(-1);

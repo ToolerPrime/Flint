@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — grid with snapping
+
+- View > Grid: show the grid (Ctrl+'), snap to it (Ctrl+Shift+'), and Edit grid to set the spacing across and down, an offset and the colour.
+- The marquee, ellipse select, crop, line, rectangle, ellipse, gradient and hitbox tools snap to grid lines, and Move pulls the box's nearer edge onto the grid. A guide close by still wins.
+- The grid is saved with each project (format 13; older projects still open).
+
 ## Unreleased — tweens with easing
 
 - The motion tween can now also scale, rotate (clockwise or counter-clockwise) and fade the object, and move it along a curved path at an even speed.

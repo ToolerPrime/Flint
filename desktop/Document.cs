@@ -424,6 +424,8 @@ public sealed class Document
     public AudioProject Audio = new();
     /// <summary>Ruler guides. Always replaced, never edited in place, so undo closures can hold the old list.</summary>
     public IReadOnlyList<Guide> Guides = Array.Empty<Guide>();
+    /// <summary>View > Grid settings, saved with the document. Replaced, never changed in place.</summary>
+    public GridSpec Grid = GridSpec.Default;
 
     public int FrameCount => Frames.Count;
 

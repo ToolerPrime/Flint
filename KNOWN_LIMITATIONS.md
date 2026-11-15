@@ -186,7 +186,7 @@ against Fireworks are in `FEATURE_PARITY.md`.
 
 ## Format
 
-- `.flint` is at version 12. Builds older than a file's version refuse it
+- `.flint` is at version 13. Builds older than a file's version refuse it
   with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides
@@ -194,6 +194,7 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Export preview: for lossy animated WebP the decoded picture is the current frame only (Play holds it); GIF, APNG and lossless WebP preview every frame. PNG-8, JPEG, BMP, TIFF and WebP stills export the current frame. WebP needs ffmpeg.
 - Guides do not follow a canvas crop, rotate or flip; snapping is off until View > Guides > Snap to guides is ticked. Dragging near a visible, unlocked guide grabs it whatever the tool (lock guides to paint beside one).
 - Move/transform snap the dragged box (left/centre/right, top/middle/bottom); scale and rotate do not snap. Lasso, wand and text do not snap.
+- Grid: snapping always pulls to the nearest grid line (no distance limit, as in Fireworks); a guide within 6 screen pixels wins. Moving snaps the nearer box edge to the grid. Grid lines are not drawn when closer than 4 screen pixels; zoom in to see them. Grid changes are saved with the document but are not undo steps; even showing or hiding the grid counts as a change to save. Crop and canvas fit keep the grid on the content; Image Size does not rescale the grid.
 
 ## Productivity commands
 
