@@ -6,7 +6,7 @@ using System.Drawing.Imaging;
 
 namespace Flint;
 
-public enum ExportKind { Gif, Apng, WebP, WebM, Mp4, Png, Sheet, Atlas, Sequence, Wav, Jpeg, Bmp, Tiff, Png8, WebPStill }
+public enum ExportKind { Gif, Apng, WebP, WebM, Mp4, Png, Sheet, Atlas, Sequence, Wav, Jpeg, Bmp, Tiff, Png8, WebPStill, Mov, MovProRes, Mkv, Avif, Aseprite, Html }
 
 public sealed class ExportJob
 {
@@ -26,18 +26,22 @@ public sealed class ExportJob
     public int Quality = 30;
     public Color Matte = Color.Black;
     public int SheetCols;
+    /// <summary>Video: host size, letterbox, repeat, frame rate, size cap. Null = as before.</summary>
+    public VideoOptions? Video;
 }
 
 public static class Exporter
 {
-    public static bool HasAudio(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.Wav or ExportKind.Atlas;
-    public static bool NeedsFfmpeg(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.WebP or ExportKind.WebPStill;
+    public static bool IsVideo(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.Mov or ExportKind.MovProRes or ExportKind.Mkv or ExportKind.Avif;
+    public static bool HasAudio(ExportKind k) => k is ExportKind.Wav or ExportKind.Atlas || (IsVideo(k) && k != ExportKind.Avif);
+    public static bool NeedsFfmpeg(ExportKind k) => IsVideo(k) || k is ExportKind.WebP or ExportKind.WebPStill;
 
     /// <summary>Run an export; returns a one-line result for the status bar.</summary>
     public static string Run(ExportJob j, IProgress<(double, string)>? p, CancellationToken ct)
     {
         if (j.Kind == ExportKind.Wav) return SaveWav(j);
         if (j.Kind == ExportKind.Atlas) return SaveAtlas(j, p);
+        if (j.Kind == ExportKind.Aseprite) return AsepriteFile.Write(j.Doc, j.Path, j.From, j.To);
 
         var frames = Render(j, p, ct);
         try
@@ -66,13 +70,22 @@ public static class Exporter
 
                 case ExportKind.WebM:
                 case ExportKind.Mp4:
+                case ExportKind.Mov:
+                case ExportKind.MovProRes:
+                case ExportKind.Mkv:
+                case ExportKind.Avif:
                 {
-                    var kind = j.Kind == ExportKind.Mp4 ? WebmExport.Kind.Mp4 : WebmExport.Kind.WebM;
+                    var kind = j.Kind switch
+                    {
+                        ExportKind.Mp4 => WebmExport.Kind.Mp4, ExportKind.Mov => WebmExport.Kind.Mov,
+                        ExportKind.MovProRes => WebmExport.Kind.MovProRes, ExportKind.Mkv => WebmExport.Kind.Mkv,
+                        ExportKind.Avif => WebmExport.Kind.Avif, _ => WebmExport.Kind.WebM,
+                    };
                     var r = WebmExport.Encode(frames, j.Path, kind, j.Quality, j.Loop, Mix(j), j.Matte, ct,
-                        new Progress<(double, string)>(t => Sub(0.4, 1, t.Item1, t.Item2)));
+                        new Progress<(double, string)>(t => Sub(0.4, 1, t.Item1, t.Item2)), j.Video);
                     if (!r.Ok) throw new InvalidOperationException(r.Message);
-                    return r.Message + (j.Kind == ExportKind.Mp4
-                        ? " — MP4 has no transparency; it was flattened onto the background colour" : "");
+                    return r.Message + (!WebmExport.KeepsAlpha(kind)
+                        ? $" — {j.Kind.ToString().ToUpperInvariant()} has no transparency; it was flattened onto the background colour" : "");
                 }
 
                 case ExportKind.Jpeg:
@@ -91,6 +104,9 @@ public static class Exporter
 
                 case ExportKind.Sheet:
                     return SaveSheet(j, frames);
+
+                case ExportKind.Html:
+                    return HtmlExport.Save(j, frames);
 
                 case ExportKind.Sequence:
                     for (int i = 0; i < frames.Count; i++)

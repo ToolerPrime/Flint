@@ -90,7 +90,10 @@ public static class WebmExport
         public long Bytes;
     }
 
-    public enum Kind { WebM, Mp4, WebP }
+    public enum Kind { WebM, Mp4, WebP, Mov, MovProRes, Mkv, Avif }
+
+    /// <summary>Kinds that keep transparency (the others are flattened onto the matte).</summary>
+    public static bool KeepsAlpha(Kind k) => k is Kind.WebM or Kind.WebP or Kind.MovProRes;
 
     /// <summary>Back-compatible entry point used by the existing tests.</summary>
     public static Result Encode(IList<Frame> frames, string outPath, int quality, bool loopHint,
@@ -107,8 +110,10 @@ public static class WebmExport
     /// <param name="matte">MP4 has no alpha; transparency is flattened onto this.</param>
     public static Result Encode(IList<Frame> frames, string outPath, Kind kind, int quality, bool loop,
                                 float[]? audio, Color? matte, CancellationToken ct,
-                                IProgress<(double, string)>? progress = null)
+                                IProgress<(double, string)>? progress = null, VideoOptions? opt = null)
     {
+        opt ??= new VideoOptions();
+        int repeat = opt.RepeatFor(frames.Sum(f => Math.Max(1, f.Delay)));
         var ffmpeg = Find();
         if (ffmpeg == null)
             return new Result
@@ -130,6 +135,7 @@ public static class WebmExport
             }
 
             var list = new StringBuilder();
+            for (int r = 0; r < repeat; r++)
             for (int i = 0; i < frames.Count; i++)
             {
                 list.Append("file '").Append($"f{i:D5}.png").Append("'\n");
@@ -148,8 +154,9 @@ public static class WebmExport
             foreach (var f in frames) step = Gcd(step, f.Delay);
             step = Math.Clamp(step, 10, 1000);          // cap at 100 fps
             string rate = $"1000/{step}";
+            string outRate = opt.Fps > 0 ? opt.Fps.ToString(CultureInfo.InvariantCulture) : rate;
 
-            int totalMs = frames.Sum(f => Math.Max(1, f.Delay));
+            long totalMs = (long)frames.Sum(f => Math.Max(1, f.Delay)) * repeat;
             // Hard cap on output length: whatever the filters do, ffmpeg cannot
             // write past the animation's real duration.
             string cap = "-t " + (totalMs / 1000.0).ToString("0.###", CultureInfo.InvariantCulture) + " ";
@@ -159,14 +166,27 @@ public static class WebmExport
             {
                 string wav = Path.Combine(work, "mix.wav");
                 using (var fs = File.Create(wav)) AudioIO.WriteFloatWav(fs, audio);
-                audioIn = $"-i \"{wav}\" ";
+                // The sound repeats with the picture; the -t cap trims the last pass.
+                audioIn = (repeat > 1 ? $"-stream_loop {repeat - 1} " : "") + $"-i \"{wav}\" ";
                 audioMap = "-map 1:a:0 ";
                 // Opus for WebM (needs 48 kHz, our internal rate); AAC for MP4.
-                audioCodec = kind == Kind.Mp4 ? "-c:a aac -b:a 192k " : "-c:a libopus -b:a 160k ";
+                audioCodec = kind switch
+                {
+                    Kind.WebM => "-c:a libopus -b:a 160k ",
+                    Kind.MovProRes => "-c:a pcm_s16le ",
+                    Kind.Avif => "-an ",
+                    _ => "-c:a aac -b:a 192k ",
+                };
+                if (kind == Kind.Avif) { audioIn = ""; audioMap = ""; }
             }
 
             string video;
-            switch (kind)
+            int sw = frames[0].Bmp.Width, sh = frames[0].Bmp.Height;
+            if (opt.TargetW > 0 || kind is Kind.Mov or Kind.MovProRes or Kind.Mkv or Kind.Avif)
+            {
+                video = VideoArgs(kind, sw, sh, rate, quality, matte ?? Color.Black, opt, loop);
+            }
+            else switch (kind)
             {
                 case Kind.Mp4:
                 {
@@ -194,18 +214,38 @@ public static class WebmExport
                     break;
             }
 
-            string args =
+            string Args(string v) =>
                 $"-y -nostats -loglevel error -f concat -safe 0 -i \"{listPath}\" {audioIn}" +
-                video + audioMap + $"-r {rate} " + audioCodec + cap +
+                v + audioMap + $"-r {outRate} " + audioCodec + cap +
                 (loop && kind == Kind.WebM ? "-metadata title=\"loop\" " : "") +
                 $"\"{outPath}\"";
 
             progress?.Report((0.35, "encoding with ffmpeg…"));
-            var (ok, message) = RunFfmpeg(ffmpeg, args, 60_000 + totalMs * 20, ct);
+            int timeout = (int)Math.Min(int.MaxValue, 60_000L + totalMs * 20L + ((long)opt.TargetW * opt.TargetH > 2_000_000 ? totalMs * 60L : 0));
+            var (ok, message) = RunFfmpeg(ffmpeg, Args(video), timeout, ct);
             if (!ok || !File.Exists(outPath))
                 return new Result { Ok = false, Message = message };
 
             long size = new FileInfo(outPath).Length;
+            // A size cap (Discord): re-encode at the bit rate that fits, a little lower each try.
+            for (int attempt = 0; opt.MaxBytes > 0 && size > opt.MaxBytes && attempt < 4; attempt++)
+            {
+                double secs = totalMs / 1000.0;
+                double audioKbps = audioIn.Length > 0 ? 192 : 0;
+                double kbps = opt.MaxBytes * 8 / 1000.0 / secs * (0.92 - attempt * 0.12) - audioKbps;
+                if (kbps < 50) { try { File.Delete(outPath); } catch { } return new Result { Ok = false, Message = $"cannot fit {opt.MaxBytes / 1_000_000.0:0.#} MB: the video is too long for that size" }; }
+                progress?.Report((0.6 + attempt * 0.1, $"too big ({size / 1_000_000.0:0.0} MB); re-encoding at {kbps:0} kbit/s"));
+                string capped = System.Text.RegularExpressions.Regex.Replace(video, @"-crf \d+ ", "") +
+                                $"-b:v {(int)kbps}k -maxrate {(int)(kbps * 1.2)}k -bufsize {(int)(kbps * 2)}k ";
+                (ok, message) = RunFfmpeg(ffmpeg, Args(capped), timeout, ct);
+                if (!ok || !File.Exists(outPath)) return new Result { Ok = false, Message = message };
+                size = new FileInfo(outPath).Length;
+            }
+            if (opt.MaxBytes > 0 && size > opt.MaxBytes)
+            {
+                try { File.Delete(outPath); } catch { }
+                return new Result { Ok = false, Message = $"could not get under {opt.MaxBytes / 1_000_000.0:0.#} MB" };
+            }
             progress?.Report((1.0, "done"));
             return new Result { Ok = true, Bytes = size, Message = $"wrote {Path.GetFileName(outPath)}, {size / 1024.0:0.0} KB" };
         }
@@ -222,6 +262,42 @@ public static class WebmExport
         {
             try { Directory.Delete(work, true); } catch { /* temp dir */ }
         }
+    }
+
+    /// <summary>
+    /// Video filter and codec arguments for the host-friendly path: flatten
+    /// onto the matte when the codec has no alpha, scale pixel art up by a
+    /// whole number with nearest neighbour (so hosts do not blur it), pad to
+    /// the target size with the letterbox colour, then pick the codec.
+    /// </summary>
+    internal static string VideoArgs(Kind kind, int w, int h, string rate, int quality, Color matte, VideoOptions opt, bool loop = true)
+    {
+        bool alpha = KeepsAlpha(kind);
+        var f = new StringBuilder("-filter_complex \"");
+        if (!alpha)
+            f.Append($"color=c=0x{matte.R:X2}{matte.G:X2}{matte.B:X2}:s={w}x{h}:r={rate}[bg];[bg][0:v]overlay=shortest=1:format=auto");
+        else f.Append("[0:v]null");
+        if (opt.TargetW > 0 && opt.TargetH > 0)
+        {
+            var (sw, sh, k) = opt.ScaledSize(w, h);
+            f.Append(k >= 1 ? $",scale={sw}:{sh}:flags=neighbor" : $",scale={sw}:{sh}:flags=area");
+            var c = opt.Letterbox;
+            string col = $"0x{c.R:X2}{c.G:X2}{c.B:X2}" + (alpha && opt.TransparentLetterbox ? "@0" : "");
+            f.Append($",pad={opt.TargetW}:{opt.TargetH}:(ow-iw)/2:(oh-ih)/2:color={col}");
+        }
+        if (kind != Kind.MovProRes) f.Append(",pad=ceil(iw/2)*2:ceil(ih/2)*2");
+        string pix = kind switch { Kind.MovProRes => "yuva444p10le", Kind.WebM or Kind.WebP => "yuva420p", _ => "yuv420p" };
+        f.Append($",format={pix}[v]\" -map \"[v]\" ");
+        int crf264 = Math.Clamp(quality - 12, 0, 51);
+        f.Append(kind switch
+        {
+            Kind.MovProRes => "-c:v prores_ks -profile:v 4444 -vendor apl0 ",
+            Kind.WebM => $"-c:v libvpx-vp9 -b:v 0 -crf {quality} -row-mt 1 ",
+            Kind.WebP => "-c:v libwebp_anim -lossless 1 -loop 0 ",
+            Kind.Avif => $"-c:v libaom-av1 -crf {Math.Clamp(quality, 0, 63)} -cpu-used 6 -row-mt 1 -loop {(loop ? 0 : 1)} ",
+            _ => $"-c:v libx264 -crf {crf264} -preset medium -profile:v high " + (kind is Kind.Mp4 or Kind.Mov ? "-movflags +faststart " : ""),
+        });
+        return f.ToString();
     }
 
     /// <summary>

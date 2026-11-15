@@ -1112,7 +1112,7 @@ public sealed partial class MainForm : ThemedForm
         if (_projectWindow == null && !ConfirmDiscard(owner)) return false;
         using var dlg = new OpenFileDialog
         {
-            Filter = "Flint project or Fireworks PNG|*.flint;*.png|All files|*.*", Title = "Open project",
+            Filter = "Flint project, Fireworks PNG or Aseprite file|*.flint;*.png;*.aseprite;*.ase|All files|*.*", Title = "Open project",
         };
         return dlg.ShowDialog(owner) == DialogResult.OK && OpenInProjectTab(dlg.FileName);
     }
@@ -1413,15 +1413,15 @@ public sealed partial class MainForm : ThemedForm
         using var dlg = new OpenFileDialog
         {
             Multiselect = true,
-            Filter = "Images|*.png;*.gif;*.jpg;*.jpeg;*.bmp|All files|*.*",
-            Title = "Import images",
+            Filter = "Images and videos|*.png;*.gif;*.jpg;*.jpeg;*.bmp;*.mp4;*.webm;*.mov;*.mkv;*.avi;*.m4v|Images|*.png;*.gif;*.jpg;*.jpeg;*.bmp|Videos (need ffmpeg)|*.mp4;*.webm;*.mov;*.mkv;*.avi;*.m4v|All files|*.*",
+            Title = "Import images or video",
         };
         if (dlg.ShowDialog(this) == DialogResult.OK) Import(dlg.FileNames);
     }
 
     private void DropFiles(string[] paths)
     {
-        if (paths.Length == 1 && paths[0].EndsWith(FlintFormat.Extension, StringComparison.OrdinalIgnoreCase))
+        if (paths.Length == 1 && (paths[0].EndsWith(FlintFormat.Extension, StringComparison.OrdinalIgnoreCase) || AsepriteFile.IsAseprite(paths[0])))
         {
             if (_projectWindow != null || ConfirmDiscard()) OpenInProjectTab(paths[0]);
             return;
@@ -1430,6 +1430,23 @@ public sealed partial class MainForm : ThemedForm
         if (audio.Length > 0) _ = ImportAudio(audio, SelectedTrackOrNew(), _timeline.PlayheadMs);
         var images = paths.Where(p => !AudioIO.IsAudio(p)).ToArray();
         if (images.Length > 0) Import(images);
+    }
+
+    /// <summary>Ask for frame rate and range, then read the video's frames behind a progress dialog. Null if cancelled.</summary>
+    private ImportedFile? LoadVideo(string path)
+    {
+        VideoImport.Info? info = null;
+        var (probed, why) = ProgressDialog.Run(this, "Reading video", (p, ct) => { info = VideoImport.Probe(path); return "ok"; });
+        if (!probed || info == null) { if (why == "cancelled") return null; throw new InvalidOperationException(why); }
+        if (VideoImportDialog.Ask(this, path, info) is not { } pick) return null;
+        ImportedFile? file = null;
+        var (ok, msg) = ProgressDialog.Run(this, "Reading video", (p, ct) =>
+        {
+            file = VideoImport.Load(path, pick.fps, pick.start, pick.length, ct, p, info);
+            return "read";
+        });
+        if (!ok) { if (msg == "cancelled") return null; throw new InvalidOperationException(msg); }
+        return file;
     }
 
     /// <summary>Options from the last import dialog, so the next one starts the same way.</summary>
@@ -1442,7 +1459,15 @@ public sealed partial class MainForm : ThemedForm
         var failures = new List<string>();
         foreach (var path in paths)
         {
-            try { files.Add(Importer.Load(path)); }
+            try
+            {
+                if (VideoImport.IsVideo(path))
+                {
+                    var video = LoadVideo(path);
+                    if (video != null) files.Add(video);
+                }
+                else files.Add(Importer.Load(path));
+            }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
         if (files.Count == 0)
@@ -1720,6 +1745,12 @@ public sealed partial class MainForm : ThemedForm
         ("BMP, current frame (32-bit with alpha)|*.bmp", ExportKind.Bmp),
         ("TIFF, current frame (32-bit with alpha)|*.tif", ExportKind.Tiff),
         ("PNG-8 indexed, current frame|*.png", ExportKind.Png8),
+        ("MOV video, H.264, no transparency|*.mov", ExportKind.Mov),
+        ("MOV video, ProRes 4444, keeps transparency (large)|*.mov", ExportKind.MovProRes),
+        ("MKV video, H.264, no transparency|*.mkv", ExportKind.Mkv),
+        ("Animated AVIF, no transparency|*.avif", ExportKind.Avif),
+        ("Aseprite file, layers, frames and tags|*.aseprite", ExportKind.Aseprite),
+        ("HTML page that plays the animation|*.html", ExportKind.Html),
     };
 
     private void ExportAny()
@@ -1728,14 +1759,27 @@ public sealed partial class MainForm : ThemedForm
         using var dlg = new SaveFileDialog
         {
             Title = "Export",
-            Filter = string.Join("|", ExportFormats.Select(f => f.filter)),
+            Filter = string.Join("|", ExportFormats.Select(f => f.filter).Concat(VideoPreset.All.Select(p => $"{p.Name}|*.{p.Ext}"))),
             FilterIndex = 1,
             FileName = Path.GetFileNameWithoutExtension(_path ?? "") is { Length: > 0 } n ? n : "animation",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        if (StillExport.IsStill(ExportFormats[dlg.FilterIndex - 1].kind)) { RunStillExport(dlg.FilterIndex - 1, dlg.FileName); return; }
-        RunExport(ExportFormats[dlg.FilterIndex - 1].kind, dlg.FileName);
+        int pick = dlg.FilterIndex - 1;
+        if (pick >= ExportFormats.Length)
+        {
+            var preset = VideoPreset.All[pick - ExportFormats.Length];
+            RunExport(preset.Kind, dlg.FileName, preset);
+            return;
+        }
+        if (StillExport.IsStill(ExportFormats[pick].kind)) { RunStillExport(pick, dlg.FileName); return; }
+        RunExport(ExportFormats[pick].kind, dlg.FileName);
     }
+
+    private static WebmExport.Kind VideoKind(ExportKind k) => k switch
+    {
+        ExportKind.Mp4 => WebmExport.Kind.Mp4, ExportKind.Mov => WebmExport.Kind.Mov, ExportKind.MovProRes => WebmExport.Kind.MovProRes,
+        ExportKind.Mkv => WebmExport.Kind.Mkv, ExportKind.Avif => WebmExport.Kind.Avif, _ => WebmExport.Kind.WebM,
+    };
 
     private void ExportSequence()
     {
@@ -1743,7 +1787,7 @@ public sealed partial class MainForm : ThemedForm
         if (dlg.ShowDialog(this) == DialogResult.OK) RunExport(ExportKind.Sequence, dlg.SelectedPath);
     }
 
-    private void RunExport(ExportKind kind, string path)
+    private void RunExport(ExportKind kind, string path, VideoPreset? preset = null)
     {
         StopPlay();
         if (Exporter.NeedsFfmpeg(kind) && WebmExport.Find() == null)
@@ -1757,6 +1801,13 @@ public sealed partial class MainForm : ThemedForm
             return;
         }
 
+        VideoOptions? video = null;
+        if (Exporter.IsVideo(kind))
+        {
+            video = VideoOptionsDialog.Ask(this, preset, WebmExport.KeepsAlpha(VideoKind(kind)), _bg, _doc.Frames.Sum(f => Math.Max(1, f.Delay)));
+            if (video == null) return;
+        }
+
         var (from, to) = ExportRange();
         var job = new ExportJob
         {
@@ -1764,7 +1815,7 @@ public sealed partial class MainForm : ThemedForm
             GifColours = (int)_colors.Value, Dither = _dither.Checked, Loop = _loop.Checked,
             IncludeAudio = _includeAudio.Checked,
             Quality = kind == ExportKind.WebP ? 0 : (int)_webmQuality.Value,
-            Matte = _bg, SheetCols = (int)_sheetCols.Value,
+            Matte = _bg, SheetCols = (int)_sheetCols.Value, Video = video,
         };
 
         var (ok, message) = ProgressDialog.Run(this, "Exporting", (p, ct) => Exporter.Run(job, p, ct));
@@ -2351,6 +2402,7 @@ public sealed partial class MainForm : ThemedForm
     internal void TestUndo() => Undo();
     internal void TestRedo() => Redo();
     internal Document TestDocument => _doc;
+    internal void TestImport(string[] paths) => Import(paths);
     internal long TestUndoBytes => _undo.Used;
     internal void TestSetActiveLayer(int i) { _activeLayer = i; RefreshAll(); }
     internal void TestSave(string path) { FlintFormat.Save(_doc, path); _path = path; _dirty = false; }

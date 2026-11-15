@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — video host formats, Aseprite files, HTML page, video import
+
+- New export formats: MOV (H.264), MOV ProRes 4444 (keeps transparency, for editors and Vimeo), MKV (H.264) and animated AVIF.
+- Video host presets in Export: YouTube 1080p, YouTube 4K, YouTube Shorts / TikTok / Instagram Reels (1080x1920), X / Twitter (1280x720), Discord (kept under 10 MB) and Vimeo (ProRes). Pixel art is scaled up by a whole number with sharp pixels, then bars fill the rest in a colour you choose, so the site does not blur it.
+- Video options before export: bar colour (or clear bars for formats with transparency), play the animation N times, or repeat it until the video is at least so many seconds long. Sound repeats with it.
+- Aseprite files: File > Open reads .aseprite and .ase (layers, frames, timing, tags); Export writes them.
+- HTML page export: one .html file that plays the animation in any browser, with exact timing. Click to pause.
+- Import video: MP4, WebM, MOV, MKV and AVI come in as frames, at the frame rate and time range you choose. WebM transparency is kept. Needs ffmpeg.
+
 ## Unreleased — smaller, better GIFs
 
 - GIFs are smaller: after the first frame, each frame stores only the box that changed, and pixels that did not change inside it are reused from the frame before. Checked frame by frame against Pillow's decode and Flint's own import. This is on for every GIF export.

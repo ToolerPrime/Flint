@@ -40,12 +40,46 @@ public sealed partial class MainForm
     /// <summary>File > Open for either kind of file. A plain PNG is not opened: Import places it.</summary>
     internal bool OpenAny(string path)
     {
+        if (AsepriteFile.IsAseprite(path)) return OpenAseprite(path);
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return LoadProject(path);
         if (Importer.HasFireworksChunks(path)) return OpenFireworks(path);
         const string msg = "This PNG has no Fireworks layers in it, so it is not a document. Use Import (File > Import) to place it as a picture.";
         if (!Program.Headless) MessageBox.Show(this, msg, "Open", MessageBoxButtons.OK, MessageBoxIcon.Information);
         Say(Path.GetFileName(path) + ": not a Fireworks document. Use Import instead.");
         return false;
+    }
+
+    /// <summary>An Aseprite file opens as a new untitled document with its layers, frames and tags.</summary>
+    internal bool OpenAseprite(string path)
+    {
+        AsepriteImport imp;
+        try { imp = AsepriteFile.Read(path); }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or EndOfStreamException or ArgumentException or OutOfMemoryException)
+        {
+            string why = $"{Path.GetFileName(path)} could not be read as an Aseprite file: {ex.Message}";
+            if (!Program.Headless) MessageBox.Show(this, why, "Could not open", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Say(why);
+            return false;
+        }
+        StopPlay();
+        _undo.Clear();
+        ClearProjectRecovery();
+        _doc.Dispose();
+        _doc = imp.Doc;
+        _cur = _selStart = _selEnd = 0;
+        _activeLayer = _doc.Layers.Count - 1;
+        _selection = null;
+        Theme.RememberProject(path);
+        _sourcePath = Path.GetFullPath(path);
+        _path = null;          // Save asks for a .flint name
+        _dirty = true;
+        FitZoom();
+        InvalidateComposite();
+        RefreshAll();
+        UpdateTitle();
+        string note = imp.Warnings.Count > 0 ? $" (note: {string.Join("; ", imp.Warnings)})" : "";
+        Say($"opened {Path.GetFileName(path)}: {imp.Summary}{note}");
+        return true;
     }
 
     internal bool OpenFireworks(string path)

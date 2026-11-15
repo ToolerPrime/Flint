@@ -169,6 +169,20 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--interchangetest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return InterchangeTest.Run(args.Length >= 2 ? args[1] : "interchangetest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--videotest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return VideoTest.Run(args.Length >= 2 ? args[1] : "videotest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--giftest")
         {
             AttachConsole(-1);

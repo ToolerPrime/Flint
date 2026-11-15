@@ -121,6 +121,11 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Animated WebP | Working | Lossless, exact delays incl. last frame; verified with PIL |
 | WebM (VP9 + alpha + Opus audio) | Working | Audio sync verified to 0.0 ms |
 | MP4 (H.264 + AAC) | Working | No alpha, flattened onto background; sync verified |
+| MOV (H.264, or ProRes 4444 with alpha), MKV (H.264), animated AVIF | Working | Through ffmpeg; checked with ffprobe and by decoding frames back. AVIF has no alpha or sound |
+| Video host presets | Working | YouTube 1080p and 4K, Shorts/TikTok/Reels 1080x1920, X 1280x720, Discord (under 10 MB), Vimeo (ProRes). Pixel art scaled by a whole number with nearest neighbour, then letterboxed in a colour you pick; repeat N times or to a minimum length |
+| Aseprite .aseprite / .ase | Partial | Checked against the public format and a hand-built file, not yet opened in Aseprite itself. Open and export: layers (name, opacity, blend, visibility), frames, durations, tags, shared layers as linked cels. Groups open as plain layers; tilemaps skipped |
+| HTML player page | Working | One self-contained .html: every frame embedded, exact delays, loop or once, sharp scaling |
+| Import video | Working | MP4, WebM and MOV ProRes keep transparency; MKV, AVI too. Through ffmpeg, with frame rate and time range; turned phone videos come in upright |
 | PNG frame, sprite sheet, PNG sequence | Working | Pixel-exact |
 | Texture atlas + JSON | Working | Trimmed, deduplicated, Aseprite JSON; rebuild test exact |
 | WAV audio | Working | 48 kHz stereo |
@@ -176,7 +181,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Slices, hotspots, buttons, rollovers | Missing | |
-| HTML export | Missing | |
+| HTML export | Partial | A page that plays the animation (Export > HTML page); no slices or rollovers |
 | Batch processing, commands | Missing | |
 | History panel | Working | Click any step to jump back or forward to it |
 

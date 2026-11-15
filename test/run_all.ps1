@@ -65,6 +65,14 @@ Write-Host "`n--- still formats (JPEG, WebP, BMP, TIFF, PNG-8) and the export pr
 & $exe --exporttest "$out\export" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "exporttest failed" }
 
+Write-Host "`n--- video host formats and presets (needs ffmpeg) ---"
+& $exe --videotest "$out\video" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "videotest failed" }
+
+Write-Host "`n--- Aseprite files, HTML player page, video import ---"
+& $exe --interchangetest "$out\inter" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "interchangetest failed" }
+
 Write-Host "`n--- GIF palettes, dithers, lossy, frame cropping (Pillow), presets ---"
 & $exe --giftest "$out\gif" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "giftest failed" }

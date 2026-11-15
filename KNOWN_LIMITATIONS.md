@@ -143,6 +143,25 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - The GIF optimizer keeps every frame (a held frame is stored as a 1-pixel
   update), so frame count and timing are exactly as in Flint.
 - MP4 has no alpha; transparency is flattened onto the background colour.
+- MOV H.264, MKV and AVIF have no alpha either; use WebM or MOV ProRes 4444
+  to keep transparency. AVIF carries no sound. ProRes files are large.
+- Video presets: art bigger than the preset size is shrunk to fit (smoothly,
+  so not pixel-sharp). Shorts/TikTok/Reels and X use 30 frames a second, so
+  frame delays that are not multiples of 33 ms are rounded to the nearest
+  video frame. The Discord preset re-encodes at a lower bit rate until the file
+  is under 10 MB; very long videos may not fit and say so.
+- Aseprite: layer groups open as plain layers (a hidden group hides its
+  layers; group opacity is not kept), cel z-index order is ignored, tilemap layers and slices are
+  skipped, tag direction (ping-pong etc.) is not kept, and cel pixels outside
+  the canvas are cut off. Export writes vector and text objects as pixels and
+  saves blend modes Aseprite lacks as Normal. Files were checked against the
+  public format description and a hand-built file, not opened in Aseprite.
+- The HTML page holds every frame in one picture, which browsers limit to
+  16384 pixels a side; very long or very large animations are refused.
+- The HTML page's player script was not run in a browser by the automated
+  tests; the tests check the embedded frames and timing data.
+- Video import holds frames in memory: about 2 GB at most; choose a lower
+  frame rate or a shorter range for long videos.
 
 ## Format
 

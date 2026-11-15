@@ -227,6 +227,21 @@ public static class ImageOps
     /// Tightest box holding an opaque pixel in ANY of the frames, so trimming
     /// an animation keeps it registered against itself. Empty if all clear.
     /// </summary>
+    public static Rectangle OpaqueBounds(byte[] bgra, int w, int h)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                if (bgra[(y * w + x) * 4 + 3] == 0) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        return maxX < 0 ? Rectangle.Empty : Rectangle.FromLTRB(minX, minY, maxX + 1, maxY + 1);
+    }
+
     public static Rectangle ContentBounds(IEnumerable<Bitmap> frames)
     {
         int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
