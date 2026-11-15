@@ -49,7 +49,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Pencil | Working | Pixel-exact, square nib 1–64 |
-| Brush (soft, textured) | Missing | |
+| Brush (soft, textured) | Working | Round soft brush with presets, Brush Settings (dynamics, scatter, texture noise, wet edges), blend modes |
 | Eraser | Working | |
 | Paint bucket | Working | Tolerance, respects selection |
 | Gradient fill | Working | Linear, radial, or fading to transparent |
@@ -112,8 +112,11 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Original / Preview / 2-Up / 4-Up | Working | Export preview dialog compares settings |
-| Indexed palette, colour count, dither | Working | One palette across all frames, no flicker |
-| Animated GIF | Working | Verified with Pillow |
+| Indexed palette, colour count, dither | Working | One palette across all frames, no flicker. Palettes: Adaptive, Exact, Web 216, Web Adaptive, Uniform, Greyscale, Black and white, Custom (loaded). Dither: none, diffusion (Floyd-Steinberg), pattern (Bayer), noise, with an amount |
+| Colour table | Working | In the export preview: lock, edit or make a colour transparent; remove unused colours; load/save .act, .gpl, .pal |
+| Lossy GIF, Optimize to size | Working | Lossy slider 0-200; Optimize to size finds the most colours (least lossy on a tie) under a KB target |
+| Export presets | Working | Save, choose and delete named export settings in the export preview |
+| Animated GIF | Working | Verified with Pillow. Frames store only the changed rectangle and reuse unchanged pixels (decodes identical, smaller files) |
 | Animated PNG (APNG) | Working | Exact pixels, full alpha, exact per-frame delays; verified with PIL |
 | Animated WebP | Working | Lossless, exact delays incl. last frame; verified with PIL |
 | WebM (VP9 + alpha + Opus audio) | Working | Audio sync verified to 0.0 ms |
@@ -153,7 +156,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Consistent alignment | Working | Bottom-centre, centre, top-left |
 | Pivot points | Working | Pivot tool; exported in atlas JSON |
 | Hitboxes | Working | Hitbox tool; exported in atlas JSON |
-| Palette locking / swapping | Partial | Import can convert to the project palette; no palette editor |
+| Palette locking / swapping | Partial | Export colour table locks, edits and loads palettes; import can convert to the project palette; no palette editor for the document itself |
 
 ## Audio (beyond Fireworks)
 
@@ -196,6 +199,6 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Exact pixels everywhere | Working | Every alpha level through every path, checked against PIL |
 | Exports off the UI thread | Working | |
 | Memory indicator | Working | Status bar |
-| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels plus the main toolbar and tool options bar; drag to dock on any side, several columns per side, tab groups (Group with, rename), dividers, fold a panel or a whole side, float, hide (Window menu, F2 etc., F4); built-in layouts (Default, Compact, Painting, Animation) and named saved layouts; last layout restored on start. Not done: several documents open at once in their own windows |
+| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels plus the main toolbar and tool options bar; drag to dock on any side, several columns per side, tab groups (Group with, rename), dividers, fold a panel or a whole side, float, hide (Window menu, F2 etc., F4); built-in layouts (Default, Compact, Painting, Animation) and named saved layouts; last layout restored on start. Several projects open at once as tabs. Not done: projects in separate windows |
 
 Productivity update: Image includes fit/trim/clip and resize quality commands for animation content. Group paths use format 10. See the workspace research/productivity-integration.md for verified Fireworks shortcut provenance and Flint extensions.

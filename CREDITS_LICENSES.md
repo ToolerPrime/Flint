@@ -30,7 +30,10 @@ colour maths from PhotoCraft (https://github.com/storytold/photocraft),
 `crates/color/src/convert.rs`. `desktop/BrushEngine.cs` translates the round
 brush tip (hardness table and falloff), dab spacing, the opacity/flow build-up
 rule and the General presets from `crates/paint/src/` (`lib.rs`, `render.rs`,
-`dynamics.rs`, `presets.rs`). Copyright (c) 2026 ArtCraft Team and the
+`dynamics.rs`, `presets.rs`). `desktop/GifPalette.cs` translates the web 216
+and uniform palettes, the web-adaptive snap, the ordered (Bayer 8x8) and noise
+dithers and their strength rule from `crates/algo/src/quantize.rs`.
+Copyright (c) 2026 ArtCraft Team and the
 PhotoCraft contributors. Used under the MIT licence (PhotoCraft is MIT or
 Apache-2.0 at the user's option). The ArtCraft name and logos are trademarks
 of the ArtCraft Team and are not used in Flint.

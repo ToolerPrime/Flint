@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — smaller, better GIFs
+
+- GIFs are smaller: after the first frame, each frame stores only the box that changed, and pixels that did not change inside it are reused from the frame before. Checked frame by frame against Pillow's decode and Flint's own import. This is on for every GIF export.
+- A pixel that exactly matches a palette colour now always gets that colour (before, a shortcut could give it a near neighbour), so some GIFs and PNG-8s come out a little more accurate than before.
+- Palette types in the export preview: Adaptive (as before), Exact, Web 216, Web Adaptive (snaps near colours to web-safe), Uniform, Greyscale, Black and white, and Custom (a palette file you load).
+- Dithering: none, diffusion (Floyd-Steinberg, as before), pattern (ordered), or noise, each with a strength from 0 to 100%.
+- Colour table window: see every colour; lock one so it stays, edit one, or make one transparent; remove unused colours; load or save .act, .gpl and JASC .pal palettes.
+- Lossy GIF slider (0-200): allows near colours where that makes the file smaller.
+- Optimize to size: type a size in KB and Flint finds the most colours that fit, using the least lossy setting that allows them.
+- Export presets: save the settings of a pane under a name, pick them again later, or delete them.
+- Palette types, the pattern and noise dithers and their strength rule are translated from PhotoCraft (see CREDITS_LICENSES.md).
+
 ## Unreleased — bracket keys, local helpers can run tests
 
 - [ and ] make the brush smaller or bigger (about 10% a step for the Brush, 1 pixel for the pencil and shapes), as in Photoshop. Written by the local Ollama model as a test of working without Claude; reviewed and one edge case fixed.

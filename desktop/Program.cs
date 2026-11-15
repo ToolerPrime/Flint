@@ -169,6 +169,13 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--giftest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return GifTest.Run(args.Length >= 2 ? args[1] : "giftest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--exporttest")
         {
             AttachConsole(-1);

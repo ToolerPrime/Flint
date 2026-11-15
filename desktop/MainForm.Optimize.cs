@@ -64,7 +64,7 @@ public sealed partial class MainForm
         {
             Doc = _doc, Kind = kind, Path = path, Current = _cur,
             From = anim ? 0 : _cur, To = anim ? _doc.FrameCount - 1 : _cur,
-            GifColours = s.Colours, Dither = s.Dither, Loop = _loop.Checked, Matte = matte,
+            GifColours = s.Colours, Dither = s.Dither, Gif = s.Gif.Clone(), Loop = _loop.Checked, Matte = matte,
             Quality = s.Format == OptFormat.WebpLossless ? 0 : s.Quality,
         };
     }

@@ -219,15 +219,20 @@ public static class Quantizer
     {
         private readonly Palette _pal;
         private readonly short[] _cache = new short[Side * Side * Side];
+        // Exact palette colours first: the 5-bit cache cell is shared by colours
+        // that differ only in their low bits (Exact and loaded palettes).
+        private readonly Dictionary<int, int> _exact = new();
 
         public Indexer(Palette pal)
         {
             _pal = pal;
             Array.Fill(_cache, (short)-1);
+            for (int i = pal.Count - 1; i >= 0; i--) _exact[pal.R[i] << 16 | pal.G[i] << 8 | pal.B[i]] = i;
         }
 
         public int Nearest(byte r, byte g, byte b)
         {
+            if (_exact.TryGetValue(r << 16 | g << 8 | b, out int e)) return e;
             int key = ((r >> Shift) << (2 * Bits)) | ((g >> Shift) << Bits) | (b >> Shift);
             short hit = _cache[key];
             if (hit >= 0) return hit;

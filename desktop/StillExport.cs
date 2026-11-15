@@ -14,6 +14,8 @@ public sealed class IndexedFrames
     public Palette Palette = null!;       // includes the transparent slot 0 when used
     public int TransparentIndex = -1;
     public List<byte[]> Indices = new();
+    /// <summary>Per palette slot, the colour before colour-table edits (-1 = the transparent slot).</summary>
+    public List<int> Source = new();
 
     /// <summary>The picture the file will show for frame i, as BGRA.</summary>
     public byte[] ToBgra(int i)
@@ -35,37 +37,8 @@ public static class StillExport
     public static bool IsStill(ExportKind k) => k is ExportKind.Jpeg or ExportKind.Bmp or ExportKind.Tiff or ExportKind.Png8 or ExportKind.WebPStill;
 
     /// <summary>One shared palette over all frames, as the GIF export builds it (so sizes agree).</summary>
-    public static IndexedFrames Index(IList<byte[]> frames, int w, int h, int colours, bool dither, CancellationToken ct = default)
-    {
-        bool anyTransparent = frames.Any(px => { for (int i = 3; i < px.Length; i += 4) if (px[i] < 128) return true; return false; });
-        int offset = anyTransparent ? 1 : 0;
-        var hist = Quantizer.BuildHistogram(frames, out double total);
-        var colors = Quantizer.Quantize(hist, total, Math.Clamp(colours, 2, 256) - offset);
-        if (colors.Count == 0) throw new InvalidOperationException("no opaque pixels to build a palette from");
-        var ix = new Quantizer.Indexer(colors);
-        var pal = anyTransparent
-            ? new Palette
-            {
-                R = new byte[] { 0 }.Concat(colors.R).ToArray(),
-                G = new byte[] { 0 }.Concat(colors.G).ToArray(),
-                B = new byte[] { 0 }.Concat(colors.B).ToArray(),
-            }
-            : colors;
-        var res = new IndexedFrames { Palette = pal, TransparentIndex = anyTransparent ? 0 : -1 };
-        foreach (var px in frames)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (dither) { res.Indices.Add(ImageOps.Dither(px, w, h, colors, ix, offset)); continue; }
-            var idx = new byte[w * h];
-            for (int q = 0; q < idx.Length; q++)
-            {
-                int o = q * 4;
-                idx[q] = px[o + 3] < 128 ? (byte)0 : (byte)(ix.Nearest(px[o + 2], px[o + 1], px[o]) + offset);
-            }
-            res.Indices.Add(idx);
-        }
-        return res;
-    }
+    public static IndexedFrames Index(IList<byte[]> frames, int w, int h, int colours, bool dither, CancellationToken ct = default) =>
+        GifPalette.Index(frames, w, h, new GifOptions { Colours = colours, Dither = dither ? DitherKind.FloydSteinberg : DitherKind.None, RemoveUnused = false }, ct);
 
     // ---------- PNG-8 ----------
 
@@ -235,7 +208,7 @@ public static class StillExport
             ExportKind.Jpeg => Jpeg(bgra, w, h, j.Quality, j.Matte),
             ExportKind.Bmp => Bmp(bgra, w, h),
             ExportKind.Tiff => Tiff(bgra, w, h),
-            ExportKind.Png8 => Png8(bgra, w, h, j.GifColours, j.Dither, out _),
+            ExportKind.Png8 => Png8(GifPalette.Index(new[] { bgra }, w, h, Exporter.GifFor(j)), w, h),
             ExportKind.WebPStill => WebpStill(bgra, w, h, j.Quality, ct),
             _ => throw new NotSupportedException(j.Kind.ToString()),
         };

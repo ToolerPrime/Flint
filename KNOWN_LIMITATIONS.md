@@ -55,7 +55,7 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Free-transform handles do not account for skew; skew is set only in the
   numeric transform dialog.
 - Selections are hard-edged: no feathering or anti-aliased edges.
-- No brush softness, smudge, dodge/burn, blur brush or layer groups yet. Bitmap layer masks already have editing controls.
+- No smudge, dodge/burn, blur brush or layer groups yet. Bitmap layer masks already have editing controls.
 - No dedicated zoom tool; zoom is the View menu, the +/− buttons and Ctrl+wheel.
 - Layer lock is not an undoable step.
 - The library is outside undo on purpose: deleting a library image cannot be
@@ -123,8 +123,8 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Animated GIF frames come from GDI+, which does not always apply GIF
   disposal methods correctly; unusual GIFs may import with traces of earlier
   frames.
-- Palette conversion uses the document's current colours; there is no
-  palette editor or palette file import yet.
+- Import palette conversion uses the document's current colours. Palette
+  files (.act, .gpl, .pal) load in the export colour table, not on import.
 
 ## Export
 
@@ -133,14 +133,21 @@ against Fireworks are in `FEATURE_PARITY.md`.
   that are not multiples of 10 ms are rounded.
 - GIF: 256 colours and one-bit transparency; partial alpha is thresholded at
   50%. Use APNG or WebP for soft edges.
+- GIF Exact palette refuses pictures with more colours than fit; choose
+  Adaptive. Fixed palettes (Web 216, Black and white, Custom) ignore the
+  colour count. Lossy GIF savings depend on the picture: flat pixel art saves
+  little, gradients and photos more. Optimize to size tries lossy steps 0-200 and keeps
+  the most colours that fit; it cannot go below 2 colours at lossy 200.
+- Uniform needs at least 8 colours (a 2x2x2 grid); a lower colour count
+  still gives 8.
+- The GIF optimizer keeps every frame (a held frame is stored as a 1-pixel
+  update), so frame count and timing are exactly as in Flint.
 - MP4 has no alpha; transparency is flattened onto the background colour.
 
 ## Format
 
-- `.flint` is at version 3. Builds older than version 3 refuse a version-3
-  file with a clear message instead of opening it with data missing.
-- Vector and text objects do not exist yet; a future file containing them
-  would open in this build with those objects dropped and a warning shown.
+- `.flint` is at version 10. Builds older than a file's version refuse it
+  with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides
 

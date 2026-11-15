@@ -18,6 +18,8 @@ public sealed class ExportJob
 
     public int GifColours = 256;
     public bool Dither;
+    /// <summary>Full GIF settings from the export preview; null = GifColours/Dither.</summary>
+    public GifOptions? Gif;
     public bool Loop = true;
     public bool IncludeAudio = true;
     /// <summary>WebM/MP4 CRF, or for WebP 0 = lossless, else quality 1-100.</summary>
@@ -171,57 +173,24 @@ public static class Exporter
         return $"wrote {System.IO.Path.GetFileName(j.Path)}, {(end - start) / 1000:0.00}s, 48 kHz stereo";
     }
 
+    /// <summary>The GIF settings a job uses: its own, or the simple colours/dither pair.</summary>
+    public static GifOptions GifFor(ExportJob j) => j.Gif?.Clone() ?? new GifOptions
+    {
+        Colours = j.GifColours, Dither = j.Dither ? DitherKind.FloydSteinberg : DitherKind.None,
+    };
+
     private static string SaveGif(ExportJob j, List<Frame> frames, Action<double> sub, CancellationToken ct)
     {
         int w = frames[0].Bmp.Width, h = frames[0].Bmp.Height;
         var all = frames.Select(f => ImageOps.GetPixels(f.Bmp)).ToList();
-
-        bool anyTransparent = all.Any(px =>
-        {
-            for (int i = 3; i < px.Length; i += 4) if (px[i] < 128) return true;
-            return false;
-        });
-        int offset = anyTransparent ? 1 : 0;
-
+        var o = GifFor(j);
         // One palette across every frame: what stops colours shimmering.
-        var hist = Quantizer.BuildHistogram(all, out double total);
-        var colors = Quantizer.Quantize(hist, total, j.GifColours - offset);
-        if (colors.Count == 0) throw new InvalidOperationException("no opaque pixels to build a palette from");
-        var ix = new Quantizer.Indexer(colors);
-        sub(0.2);
-
-        var palette = colors;
-        if (anyTransparent)
-            palette = new Palette
-            {
-                R = new byte[] { 0 }.Concat(colors.R).ToArray(),
-                G = new byte[] { 0 }.Concat(colors.G).ToArray(),
-                B = new byte[] { 0 }.Concat(colors.B).ToArray(),
-            };
-
-        var gifFrames = new List<GifFrame>();
-        for (int i = 0; i < all.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            byte[] indices;
-            if (j.Dither) indices = ImageOps.Dither(all[i], w, h, colors, ix, offset);
-            else
-            {
-                indices = new byte[w * h];
-                var px = all[i];
-                for (int q = 0; q < indices.Length; q++)
-                {
-                    int o = q * 4;
-                    indices[q] = px[o + 3] < 128 ? (byte)0 : (byte)(ix.Nearest(px[o + 2], px[o + 1], px[o]) + offset);
-                }
-            }
-            gifFrames.Add(new GifFrame { Indices = indices, DelayMs = frames[i].Delay });
-            sub(0.2 + 0.7 * (i + 1) / all.Count);
-        }
-
-        byte[] gif = GifEncoder.Encode(w, h, gifFrames, palette, anyTransparent ? 0 : -1, j.Loop);
+        var ix = GifPalette.Index(all, w, h, o, ct);
+        sub(0.5);
+        var gifFrames = ix.Indices.Select((idx, i) => new GifFrame { Indices = idx, DelayMs = frames[i].Delay }).ToList();
+        byte[] gif = GifEncoder.Encode(w, h, gifFrames, ix.Palette, ix.TransparentIndex, j.Loop, o.Optimize, o.Lossy, ct);
         File.WriteAllBytes(j.Path, gif);
-        return $"wrote {System.IO.Path.GetFileName(j.Path)}, {gif.Length / 1024.0:0.0} KB, {palette.Count} colours";
+        return $"wrote {System.IO.Path.GetFileName(j.Path)}, {gif.Length / 1024.0:0.0} KB, {ix.Palette.Count} colours";
     }
 
     private static string SaveSheet(ExportJob j, List<Frame> frames)

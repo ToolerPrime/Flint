@@ -253,7 +253,7 @@ public static class ImageOps
     /* Floyd-Steinberg, serpentine. Off by default: on pixel art the noise
      * reads as dirt rather than as extra colour. */
     public static byte[] Dither(byte[] bgra, int w, int h, Palette pal,
-                                Quantizer.Indexer ix, int offset)
+                                Quantizer.Indexer ix, int offset, float amount = 1f)
     {
         var err = new float[w * h * 3];
         var outIdx = new byte[w * h];
@@ -270,7 +270,7 @@ public static class ImageOps
                 float b = Math.Clamp(bgra[o + 0] + err[e + 2], 0, 255);
                 int idx = ix.Nearest((byte)r, (byte)g, (byte)b);
                 outIdx[p] = (byte)(idx + offset);
-                float dr = r - pal.R[idx], dg = g - pal.G[idx], db = b - pal.B[idx];
+                float dr = (r - pal.R[idx]) * amount, dg = (g - pal.G[idx]) * amount, db = (b - pal.B[idx]) * amount;
                 int fwd = leftToRight ? 1 : -1;
                 void Spread(int nx, int ny, float f)
                 {

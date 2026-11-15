@@ -65,6 +65,10 @@ Write-Host "`n--- still formats (JPEG, WebP, BMP, TIFF, PNG-8) and the export pr
 & $exe --exporttest "$out\export" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "exporttest failed" }
 
+Write-Host "`n--- GIF palettes, dithers, lossy, frame cropping (Pillow), presets ---"
+& $exe --giftest "$out\gif" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "giftest failed" }
+
 Write-Host "`n--- rulers, guides, snapping, .flint guides ---"
 & $exe --guidestest "$out\guides" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "guidestest failed" }
