@@ -162,6 +162,8 @@ public sealed class VectorArt
     public List<VShape> Shapes = new();
     /// <summary>Paint shapes in list order (later on top) instead of largest first. Off for traced art.</summary>
     public bool KeepOrder;
+    /// <summary>The editable bezier source of a path object (Pen tool), in the art's space; null for traced or imported art.</summary>
+    public PathSource? Path;
     public int PointCount { get { int n = 0; foreach (var s in Shapes) foreach (var c in s.Contours) n += c.Count; return n; } }
 }
 

@@ -1,7 +1,7 @@
 # Flint architecture
 
 Native Windows app: C# on .NET 8, WinForms UI, one self-contained x64
-executable. One NuGet dependency (NAudio, for sound devices). ffmpeg is an
+executable. Two NuGet dependencies (NAudio, for sound devices; Clipper2, for path combining and offsets). ffmpeg is an
 optional external tool for video and some decoding.
 
 ## Why WinForms
@@ -215,3 +215,33 @@ EditableSources.cs supplies immutable PrimitiveSpec and TextSource records. Rast
 ObjectGroups validates bounded immutable-by-convention GroupPath copies on RasterObject. Nested membership lives on the flat cel stack, preserving existing compositing order; it is not an isolated rendering container. Selection holds multiple indices in one active layer/cel. Clone remaps group IDs. Format 10 adds optional groups arrays; missing arrays in older files mean no membership.
 
 CanvasEdits prepares replacement objects, masks and marker coordinates before committing changes. Fit translates all cels without discarding off-canvas source. Clip explicitly cuts cached pixels and clears editable sources on partial intersections. Current-frame clipping of shared content prepares independent cels under a memory guard. Resize composes affine transforms and uses the chosen resampler while keeping editable sources and frame timing. ResizePlan checks dimensions before allocation. MainForm.Productivity and MainForm.Grouping connect these operations to one-step structural undo and shortcut routing.
+
+## Symbols (format 14)
+
+Masters live in `Document.Symbols` (a list that is replaced, never edited);
+each `SymbolMaster` holds a small `Document` with its own frames and layers
+and is never mutated once stored. An instance is an ordinary `RasterObject`
+with `Symbol` set: its `Original` is the master frame it shows (cached per
+master content in `SymbolOps.FrameBitmap`) and its `Matrix` places it, so
+rendering, exporters, onion skin and transforms need no symbol code.
+`SymbolRef.Offset` (how many frames after its start a copy sits) travels with
+the object through frame moves; `FrameIn` turns it into a master frame for
+loop / play once / single frame. Editing a symbol swaps in a clone of its
+content and a fresh undo stack; Done stores a new master, rebuilds every
+instance (`SymbolOps.Refresh`) and pushes one structure edit. Instances are
+saved without pixels and rebuilt from the master on load. See
+`desktop/Symbols.cs` and `desktop/MainForm.Symbols.cs`.
+
+## Paths (format 15)
+
+A path object is a `RasterObject` whose `Vector` art carries the editable
+source in `VectorArt.Path` (`PathSource`: subpaths of nodes with absolute
+bezier handles, fill, stroke, centred stroke width; immutable). The art's
+shapes (fill, then stroke pieces) are built from it by `PathSources.Create`
+and drawn by `Tracer.Render`, so pixels are exact and transforms re-render
+from the source like any vector object; `With()` drops `Vector`, so a
+destructive edit leaves plain pixels. Edits always build a new object from
+the source (`PathSources.Replace`). Combine/Alter (`PathOps`) flatten the
+outlines finely, combine or offset them exactly with Clipper2, and refit
+curves (`PathFit`, translated from VectorCraft).
+See `desktop/PathSource.cs`, `desktop/PathOps.cs`, `desktop/MainForm.Pen.cs`.

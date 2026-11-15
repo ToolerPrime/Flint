@@ -169,6 +169,68 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--pathtest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return PathTest.Run(args.Length >= 2 ? args[1] : "pathtest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--symboltest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return SymbolTest.Run(args.Length >= 2 ? args[1] : "symboltest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--gridtest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return GridTest.Run(args.Length >= 2 ? args[1] : "gridtest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--pathfittest")
+        {
+            AttachConsole(-1);
+            return PathFitTest.Run();
+        }
+
+        if (args.Length >= 1 && args[0] == "--tweentest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return TweenTest.Run(args.Length >= 2 ? args[1] : "tweentest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--framehelperstest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return FrameHelpersTest.Run(args.Length >= 2 ? args[1] : "framehelperstest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--interchangetest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return InterchangeTest.Run(args.Length >= 2 ? args[1] : "interchangetest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--videotest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return VideoTest.Run(args.Length >= 2 ? args[1] : "videotest-out");
+        }
+
+        if (args.Length >= 1 && args[0] == "--giftest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return GifTest.Run(args.Length >= 2 ? args[1] : "giftest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--exporttest")
         {
             AttachConsole(-1);

@@ -137,6 +137,7 @@ public sealed partial class MainForm
         if (!CanEditObject()) return;
         if (SelectedObjectIndices.Length != 1) { Say("Alt-click one group member to edit its properties."); return; }
         var obj = SelectedObject!;
+        if (obj.Vector?.Path != null) { EditPathStyle(); return; }
         using var dialog = new ObjectPropertiesDialog(obj);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try { ApplyObjectProperties(dialog.Primitive, dialog.TextSource, dialog.ObjectName, dialog.PositionX, dialog.PositionY); }

@@ -89,7 +89,8 @@ public sealed partial class MainForm
         Tool? next = key switch
         {
             Keys.V or Keys.D0 or Keys.NumPad0 => Cycle(Tool.ObjectSelect, Tool.Move),  // Pointer, then whole-layer Move
-            Keys.A or Keys.D1 or Keys.NumPad1 => Tool.ObjectSelect,                   // Subselection (Alt-click picks a group member)
+            Keys.A or Keys.D1 or Keys.NumPad1 => Tool.Subselect,                      // Subselection: path points (other objects pick as with Pointer)
+            Keys.P => Tool.Pen,
             Keys.Q => Tool.Transform,                                                  // Scale / skew / distort
             Keys.C => Tool.Crop,
             Keys.M => Cycle(Tool.Marquee, Tool.EllipseSelect),

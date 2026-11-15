@@ -167,6 +167,20 @@ case "rect":
                 g.DrawRectangle(p, 4f, 6f, 16f, 12f);
                 return true;
             }
+            case "pen":
+            {
+                // nib: our own simple drawing
+                g.DrawLines(p, new[] { new PointF(12f, 3f), new PointF(18f, 12f), new PointF(14f, 20f), new PointF(10f, 20f), new PointF(6f, 12f), new PointF(12f, 3f) });
+                g.DrawLine(p, 12f, 3f, 12f, 12f);
+                g.FillEllipse(b, 10.5f, 11f, 3f, 3f);
+                return true;
+            }
+            case "subselect":
+            {
+                g.FillPolygon(b, new[] { new PointF(6f, 3f), new PointF(6f, 18f), new PointF(10f, 14f), new PointF(13f, 21f), new PointF(15.5f, 20f), new PointF(12.5f, 13f), new PointF(18f, 13f) });
+                g.DrawRectangle(p, 16f, 17f, 4f, 4f);
+                return true;
+            }
             case "ellipse":
             {
                 g.DrawEllipse(p, 4f, 4f, 16f, 16f);

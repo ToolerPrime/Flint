@@ -33,9 +33,14 @@ public static class FlintFormat
     /// 8: ruler guides (a "guides" list of {vertical, pos}).
     /// 9: editable primitive and text source properties on rendered objects.
     /// 10: nested logical group paths on objects.
+    /// 11: per-frame "export": false for frames left out of exports.
+    /// 12: editable tween spans per layer ("tweens").
+    /// 13: document grid ("grid": show, snap, spacing, offset, colour).
+    /// 14: symbol masters ("symbols", each with frames and layers) and instances (objects with "symbol", no image).
+    /// 15: editable bezier paths ("path" inside a vector object: subpaths of nodes, fill, stroke, width).
     /// Older versions load unchanged; their missing fields take defaults.
     /// </summary>
-    public const int CurrentVersion = 10;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
+    public const int CurrentVersion = 15;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
     public const string Extension = ".flint";
 
     public sealed class LoadResult
@@ -64,20 +69,7 @@ public static class FlintFormat
                     ["height"] = doc.Height,
                 };
 
-                var frames = new JsonArray();
-                foreach (var f in doc.Frames)
-                {
-                    var fn = new JsonObject { ["delay"] = f.Delay, ["name"] = f.Name };
-                    if (f.Pivot is { } pv) fn["pivot"] = new JsonObject { ["x"] = pv.X, ["y"] = pv.Y };
-                    if (f.Hitboxes.Count > 0)
-                        fn["hitboxes"] = new JsonArray(f.Hitboxes.Select(h => (JsonNode)new JsonObject
-                        {
-                            ["name"] = h.Name, ["x"] = h.Rect.X, ["y"] = h.Rect.Y,
-                            ["w"] = h.Rect.Width, ["h"] = h.Rect.Height,
-                        }).ToArray());
-                    frames.Add(fn);
-                }
-                manifest["frames"] = frames;
+                manifest["frames"] = SaveFrames(doc);
 
                 var tags = new JsonArray();
                 foreach (var t in doc.Tags)
@@ -88,77 +80,20 @@ public static class FlintFormat
                     });
                 manifest["tags"] = tags;
                 if (doc.Guides.Count > 0) manifest["guides"] = GuideSet.ToJson(doc.Guides);
+                if (doc.Grid != GridSpec.Default) manifest["grid"] = doc.Grid.ToJson();
 
-                var layers = new JsonArray();
-                foreach (var l in doc.Layers)
+                if (doc.Symbols.Count > 0)
                 {
-                    var cels = new JsonArray();
-                    foreach (var (frameKey, cel) in l.Cels.OrderBy(k => k.Key))
-                    {
-                        var objects = new JsonArray();
-                        foreach (var o in cel.Objects)
+                    var syms = new JsonArray();
+                    foreach (var m in doc.Symbols)
+                        syms.Add(new JsonObject
                         {
-                            var node = new JsonObject
-                            {
-                                ["kind"] = o.Kind.ToString(),
-                                ["name"] = o.Name,
-                                ["visible"] = o.Visible,
-                                ["opacity"] = o.Opacity,
-                                ["blend"] = o.Blend.ToString(),
-                                ["x"] = o.X,
-                                ["y"] = o.Y,
-                            };
-                            if (o is RasterObject r)
-                            {
-                                string entry = $"images/{imageSeq++:D5}.png";
-                                node["image"] = entry;
-                                node["w"] = r.Width;
-                                node["h"] = r.Height;
-                                WritePng(zip, entry, r.Pixels);
-                                if (r.GroupPath.Count > 0) node["groups"] = new JsonArray(r.GroupPath.Select(id => (JsonNode)id).ToArray());
-                                if (r.Primitive != null) node["primitive"] = r.Primitive.ToJson();
-                                if (r.TextSource != null) node["textSource"] = r.TextSource.ToJson();
-                                if (r.Original != null || r.Vector != null)
-                                {
-                                    if (r.Original != null)
-                                    {
-                                        string oe = $"images/{imageSeq++:D5}.png";
-                                        WritePng(zip, oe, r.Original);
-                                        node["original"] = oe;
-                                    }
-                                    if (r.Vector != null) node["vector"] = VectorToJson(r.Vector);
-                                    node["matrix"] = new JsonArray(r.Matrix.ToArray().Select(v => (JsonNode)v).ToArray());
-                                    node["resample"] = r.Mode.ToString();
-                                    if (r.Effects is { Count: > 0 }) node["effects"] = EffectsToJson(r.Effects);
-                                }
-                            }
-                            objects.Add(node);
-                        }
-                        var celNode = new JsonObject { ["frame"] = frameKey, ["objects"] = objects };
-                        if (cel.Mask != null)
-                        {
-                            string me2 = $"images/{imageSeq++:D5}.png";
-                            WritePng(zip, me2, cel.Mask.Pixels);
-                            celNode["mask"] = me2;
-                        }
-                        cels.Add(celNode);
-                    }
-
-                    var layerNode = new JsonObject
-                    {
-                        ["name"] = l.Name,
-                        ["visible"] = l.Visible,
-                        ["locked"] = l.Locked,
-                        ["shared"] = l.Shared,
-                        ["opacity"] = l.Opacity,
-                        ["blend"] = l.Blend.ToString(),
-                        ["cels"] = cels,
-                    };
-                    if (!l.MaskEnabled) layerNode["maskEnabled"] = false;
-                    if (!l.MaskLinked) layerNode["maskLinked"] = false;
-                    layers.Add(layerNode);
+                            ["id"] = m.Id, ["name"] = m.Name, ["width"] = m.Content.Width, ["height"] = m.Content.Height,
+                            ["frames"] = SaveFrames(m.Content), ["layers"] = SaveLayers(m.Content, zip, ref imageSeq, null),
+                        });
+                    manifest["symbols"] = syms;
                 }
-                manifest["layers"] = layers;
+                manifest["layers"] = SaveLayers(doc, zip, ref imageSeq, doc.Symbols.Select(m => m.Id).ToHashSet());
                 manifest["audio"] = SaveAudio(doc.Audio, zip);
                 var lib = new JsonArray();
                 foreach (var item in doc.Library)
@@ -185,6 +120,55 @@ public static class FlintFormat
     }
 
     // ---------- load ----------
+
+    private static JsonNode TweenToJson(TweenSpan t)
+    {
+        var s = t.Spec;
+        var o = new JsonObject
+        {
+            ["start"] = t.Start, ["frames"] = t.Frames, ["object"] = t.ObjectIndex,
+            ["dx"] = s.Dx, ["dy"] = s.Dy, ["scaleFrom"] = s.ScaleFrom, ["scaleTo"] = s.ScaleTo, ["rotate"] = s.Rotate,
+            ["ease"] = s.Ease.Kind.ToString(),
+        };
+        if (s.Ease.Kind == EaseKind.Custom) o["bezier"] = new JsonArray(s.Ease.X1, s.Ease.Y1, s.Ease.X2, s.Ease.Y2);
+        if (s.OpacityFrom is { } of) o["opacityFrom"] = of;
+        if (s.OpacityTo is { } ot) o["opacityTo"] = ot;
+        if (s.CurveX is { } cx && s.CurveY is { } cy) o["curve"] = new JsonArray(cx, cy);
+        if (t.BaseOpacity != 255) o["baseOpacity"] = t.BaseOpacity;
+        if (t.StartCount >= 0) o["startCount"] = t.StartCount;
+        return o;
+    }
+
+    private static TweenSpan? TweenFromJson(JsonNode n)
+    {
+        // Anything out of range drops the tween (its frames stay); a file must never crash Edit.
+        try
+        {
+        int start = n["start"]?.GetValue<int>() ?? -1, frames = n["frames"]?.GetValue<int>() ?? 0, obj = n["object"]?.GetValue<int>() ?? -1;
+        if (start < 0 || frames is < 1 or > 120 || obj < 0) return null;
+        string? kn = n["ease"]?.GetValue<string>();
+        var kind = kn != null && Enum.TryParse<EaseKind>(kn, out var k) && Enum.IsDefined(k) && !int.TryParse(kn, out _) ? k : EaseKind.Linear;
+        var bz = n["bezier"]?.AsArray();
+        var ease = kind == EaseKind.Custom && bz is { Count: 4 }
+            ? new Ease(kind, bz[0]!.GetValue<double>(), bz[1]!.GetValue<double>(), bz[2]!.GetValue<double>(), bz[3]!.GetValue<double>())
+            : new Ease(kind);
+        if (kind == EaseKind.Custom && !(ease.X1 is >= 0 and <= 1 && ease.X2 is >= 0 and <= 1 && ease.Y1 is >= -0.5 and <= 1.5 && ease.Y2 is >= -0.5 and <= 1.5))
+            ease = new Ease(EaseKind.Linear);
+        var spec = new TweenSpec
+        {
+            NewFrames = frames, Dx = n["dx"]?.GetValue<double>() ?? 0, Dy = n["dy"]?.GetValue<double>() ?? 0,
+            ScaleFrom = n["scaleFrom"]?.GetValue<double>() ?? 100, ScaleTo = n["scaleTo"]?.GetValue<double>() ?? 100,
+            Rotate = n["rotate"]?.GetValue<double>() ?? 0, Ease = ease,
+            OpacityFrom = n["opacityFrom"]?.GetValue<double>(), OpacityTo = n["opacityTo"]?.GetValue<double>(),
+        };
+        if (n["curve"]?.AsArray() is { Count: 2 } c) { spec.CurveX = c[0]!.GetValue<double>(); spec.CurveY = c[1]!.GetValue<double>(); }
+        double[] v = { spec.Dx, spec.Dy, spec.ScaleFrom, spec.ScaleTo, spec.Rotate, spec.CurveX ?? 0, spec.CurveY ?? 0, spec.OpacityFrom ?? 0, spec.OpacityTo ?? 0 };
+        if (v.Any(x => !double.IsFinite(x) || Math.Abs(x) > 100_000) || spec.ScaleFrom is <= 0 or > 1000 || spec.ScaleTo is <= 0 or > 1000 ||
+            spec.OpacityFrom is < 0 or > 100 || spec.OpacityTo is < 0 or > 100) return null;
+        return new TweenSpan(start, frames, obj, spec, (byte)Math.Clamp(n["baseOpacity"]?.GetValue<int>() ?? 255, 0, 255), n["startCount"]?.GetValue<int>() ?? -1);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException or ArgumentException or NullReferenceException) { return null; }
+    }
 
     public static LoadResult Load(string path)
     {
@@ -220,26 +204,7 @@ public static class FlintFormat
             };
             if (doc.Width <= 0 || doc.Height <= 0) { result.Error = "canvas size is missing"; return result; }
 
-            foreach (var f in root["frames"]?.AsArray() ?? new JsonArray())
-            {
-                var spec = new FrameSpec
-                {
-                    Delay = f?["delay"]?.GetValue<int>() ?? 100,
-                    Name = f?["name"]?.GetValue<string>() ?? "",
-                };
-                if (f?["pivot"] is JsonNode pv)
-                    spec.Pivot = new Point(pv["x"]?.GetValue<int>() ?? 0, pv["y"]?.GetValue<int>() ?? 0);
-                foreach (var hn in f?["hitboxes"]?.AsArray() ?? new JsonArray())
-                    if (hn != null)
-                        spec.Hitboxes.Add(new Hitbox
-                        {
-                            Name = hn["name"]?.GetValue<string>() ?? "hit",
-                            Rect = new Rectangle(hn["x"]?.GetValue<int>() ?? 0, hn["y"]?.GetValue<int>() ?? 0,
-                                                 hn["w"]?.GetValue<int>() ?? 0, hn["h"]?.GetValue<int>() ?? 0),
-                        });
-                doc.Frames.Add(spec);
-            }
-            if (doc.Frames.Count == 0) doc.Frames.Add(new FrameSpec());
+            LoadFrames(root, doc);
 
             foreach (var t in root["tags"]?.AsArray() ?? new JsonArray())
                 doc.Tags.Add(new AnimTag
@@ -251,91 +216,25 @@ public static class FlintFormat
                 });
 
             doc.Guides = GuideSet.FromJson(root["guides"] as JsonArray);
+            doc.Grid = GridSpec.FromJson(root["grid"]);
 
-            foreach (var ln in root["layers"]?.AsArray() ?? new JsonArray())
+            var masters = new List<SymbolMaster>();
+            foreach (var sn in root["symbols"]?.AsArray() ?? new JsonArray())
             {
-                if (ln == null) continue;
-                var layer = new Layer
+                string? id = sn?["id"]?.GetValue<string>();
+                int sw = sn?["width"]?.GetValue<int>() ?? 0, sh = sn?["height"]?.GetValue<int>() ?? 0;
+                if (sn == null || string.IsNullOrEmpty(id) || sw <= 0 || sh <= 0 || (long)sw * sh > 16_777_216 || masters.Any(m => m.Id == id))
                 {
-                    Name = ln["name"]?.GetValue<string>() ?? "Layer",
-                    Visible = ln["visible"]?.GetValue<bool>() ?? true,
-                    Locked = ln["locked"]?.GetValue<bool>() ?? false,
-                    Shared = ln["shared"]?.GetValue<bool>() ?? false,
-                    Opacity = (byte)(ln["opacity"]?.GetValue<int>() ?? 255),
-                    Blend = ParseBlend(ln["blend"]?.GetValue<string>(), result),
-                    MaskEnabled = ln["maskEnabled"]?.GetValue<bool>() ?? true,
-                    MaskLinked = ln["maskLinked"]?.GetValue<bool>() ?? true,
-                };
-
-                foreach (var cn in ln["cels"]?.AsArray() ?? new JsonArray())
-                {
-                    if (cn == null) continue;
-                    int frameKey = cn["frame"]?.GetValue<int>() ?? 0;
-                    var cel = new Cel();
-                    foreach (var on in cn["objects"]?.AsArray() ?? new JsonArray())
-                    {
-                        if (on == null) continue;
-                        string kind = on["kind"]?.GetValue<string>() ?? "Raster";
-                        if (kind != "Raster")
-                        {
-                            // Forward compatibility: keep going rather than
-                            // refusing the whole file, but never pretend the
-                            // object survived.
-                            result.Warnings.Add($"dropped a '{kind}' object: this build only reads raster objects");
-                            continue;
-                        }
-
-                        string? entryName = on["image"]?.GetValue<string>();
-                        var entry = entryName == null ? null : zip.GetEntry(entryName);
-                        if (entry == null)
-                        {
-                            result.Warnings.Add($"missing image data for '{on["name"]?.GetValue<string>()}'");
-                            continue;
-                        }
-
-                        var bmp = ReadPng(entry);
-                        Bitmap? original = null;
-                        if (on["original"]?.GetValue<string>() is string on2 && zip.GetEntry(on2) is { } oentry)
-                            original = ReadPng(oentry);
-
-                        cel.Objects.Add(new RasterObject(bmp)
-                        {
-                            Original = original,
-                            GroupPath = ObjectGroups.FromJson(on["groups"] as JsonArray),
-                            Primitive = PrimitiveSpec.FromJson(on["primitive"] as JsonObject),
-                            TextSource = TextSource.FromJson(on["textSource"] as JsonObject),
-                            Vector = on["vector"] is JsonObject vn ? VectorFromJson(vn) : null,
-                            Effects = on["effects"] is JsonArray fxa ? EffectsFromJson(fxa) : null,
-                            Matrix = on["matrix"] is JsonArray ma && ma.Count == 6
-                                ? Affine.FromArray(ma.Select(v => v!.GetValue<double>()).ToArray()) : Affine.Identity,
-                            Mode = Enum.TryParse<Resample>(on["resample"]?.GetValue<string>(), out var rm) ? rm : Resample.Nearest,
-                            Name = on["name"]?.GetValue<string>() ?? "Bitmap",
-                            Visible = on["visible"]?.GetValue<bool>() ?? true,
-                            Opacity = (byte)(on["opacity"]?.GetValue<int>() ?? 255),
-                            Blend = ParseBlend(on["blend"]?.GetValue<string>(), result),
-                            X = on["x"]?.GetValue<int>() ?? 0,
-                            Y = on["y"]?.GetValue<int>() ?? 0,
-                        });
-                    }
-                    if (cn["mask"]?.GetValue<string>() is string mn && zip.GetEntry(mn) is { } mentry)
-                    {
-                        var mb = ReadPng(mentry);
-                        if (mb.Width == doc.Width && mb.Height == doc.Height)
-                        {
-                            // normalise to the in-memory form: grey (G times A) in all three channels, A = 255
-                            var mpx = ImageOps.GetPixels(mb);
-                            for (int i = 0; i < mpx.Length; i += 4) { byte g = (byte)(mpx[i + 1] * mpx[i + 3] / 255); mpx[i] = mpx[i + 1] = mpx[i + 2] = g; mpx[i + 3] = 255; }
-                            cel.Mask = new RasterObject(ImageOps.FromPixels(mb.Width, mb.Height, mpx)) { Name = "Mask" };
-                        }
-                        else result.Warnings.Add($"a layer mask on '{layer.Name}' does not match the canvas size and was dropped");
-                    }
-                    else if (cn["mask"] != null) result.Warnings.Add($"a layer mask on '{layer.Name}' is missing from the file");
-                    layer.Cels[frameKey] = cel;
+                    result.Warnings.Add("a symbol in the file is damaged and was dropped");
+                    continue;
                 }
-                doc.Layers.Add(layer);
+                var content = new Document { Width = sw, Height = sh };
+                LoadFrames(sn, content);
+                LoadLayers(sn, zip, content, result, null);
+                masters.Add(new SymbolMaster(id, sn["name"]?.GetValue<string>() ?? "Symbol", content));
             }
-
-            if (doc.Layers.Count == 0) doc.Layers.Add(new Layer { Name = "Layer 1" });
+            doc.Symbols = masters;
+            LoadLayers(root, zip, doc, result, masters);
             if (root["audio"] is JsonNode audioNode) LoadAudio(audioNode, zip, doc.Audio, result);
             foreach (var ln2 in root["library"]?.AsArray() ?? new JsonArray())
             {
@@ -359,6 +258,271 @@ public static class FlintFormat
             result.Error = ex.Message;
             return result;
         }
+    }
+
+    // ---------- frames and layers (shared by the document and symbol masters) ----------
+
+    private static JsonArray SaveFrames(Document doc)
+    {
+        var frames = new JsonArray();
+        foreach (var f in doc.Frames)
+        {
+            var fn = new JsonObject { ["delay"] = f.Delay, ["name"] = f.Name };
+            if (!f.Export) fn["export"] = false;
+            if (f.Pivot is { } pv) fn["pivot"] = new JsonObject { ["x"] = pv.X, ["y"] = pv.Y };
+            if (f.Hitboxes.Count > 0)
+                fn["hitboxes"] = new JsonArray(f.Hitboxes.Select(h => (JsonNode)new JsonObject
+                {
+                    ["name"] = h.Name, ["x"] = h.Rect.X, ["y"] = h.Rect.Y,
+                    ["w"] = h.Rect.Width, ["h"] = h.Rect.Height,
+                }).ToArray());
+            frames.Add(fn);
+        }
+        return frames;
+    }
+
+    /// <param name="symbolIds">Masters instances may link to here; an instance outside them (pasted from elsewhere, or inside a master) is saved as a plain picture.</param>
+    private static JsonArray SaveLayers(Document doc, ZipArchive zip, ref int imageSeq, IReadOnlySet<string>? symbolIds)
+    {
+        var layers = new JsonArray();
+        foreach (var l in doc.Layers)
+        {
+            var cels = new JsonArray();
+            foreach (var (frameKey, cel) in l.Cels.OrderBy(k => k.Key))
+            {
+                var objects = new JsonArray();
+                foreach (var o in cel.Objects)
+                {
+                    var node = new JsonObject
+                    {
+                        ["kind"] = o.Kind.ToString(),
+                        ["name"] = o.Name,
+                        ["visible"] = o.Visible,
+                        ["opacity"] = o.Opacity,
+                        ["blend"] = o.Blend.ToString(),
+                        ["x"] = o.X,
+                        ["y"] = o.Y,
+                    };
+                    if (o is RasterObject { Symbol: { } sym } inst && symbolIds != null && symbolIds.Contains(sym.Id))
+                    {
+                        // An instance: its pixels are rebuilt from the master on load, never stored.
+                        node["symbol"] = new JsonObject { ["id"] = sym.Id, ["play"] = sym.Play.ToString(), ["first"] = sym.First, ["offset"] = sym.Offset };
+                        node["matrix"] = new JsonArray(inst.Matrix.ToArray().Select(v => (JsonNode)v).ToArray());
+                        node["resample"] = inst.Mode.ToString();
+                        if (inst.Effects is { Count: > 0 }) node["effects"] = EffectsToJson(inst.Effects);
+                        if (inst.GroupPath.Count > 0) node["groups"] = new JsonArray(inst.GroupPath.Select(id => (JsonNode)id).ToArray());
+                    }
+                    else if (o is RasterObject r)
+                    {
+                        string entry = $"images/{imageSeq++:D5}.png";
+                        node["image"] = entry;
+                        node["w"] = r.Width;
+                        node["h"] = r.Height;
+                        WritePng(zip, entry, r.Pixels);
+                        if (r.GroupPath.Count > 0) node["groups"] = new JsonArray(r.GroupPath.Select(id => (JsonNode)id).ToArray());
+                        if (r.Primitive != null) node["primitive"] = r.Primitive.ToJson();
+                        if (r.TextSource != null) node["textSource"] = r.TextSource.ToJson();
+                        if (r.Original != null || r.Vector != null)
+                        {
+                            if (r.Original != null)
+                            {
+                                string oe = $"images/{imageSeq++:D5}.png";
+                                WritePng(zip, oe, r.Original);
+                                node["original"] = oe;
+                            }
+                            if (r.Vector != null) node["vector"] = VectorToJson(r.Vector);
+                            node["matrix"] = new JsonArray(r.Matrix.ToArray().Select(v => (JsonNode)v).ToArray());
+                            node["resample"] = r.Mode.ToString();
+                            if (r.Effects is { Count: > 0 }) node["effects"] = EffectsToJson(r.Effects);
+                        }
+                    }
+                    objects.Add(node);
+                }
+                var celNode = new JsonObject { ["frame"] = frameKey, ["objects"] = objects };
+                if (cel.Mask != null)
+                {
+                    string me2 = $"images/{imageSeq++:D5}.png";
+                    WritePng(zip, me2, cel.Mask.Pixels);
+                    celNode["mask"] = me2;
+                }
+                cels.Add(celNode);
+            }
+
+            var layerNode = new JsonObject
+            {
+                ["name"] = l.Name,
+                ["visible"] = l.Visible,
+                ["locked"] = l.Locked,
+                ["shared"] = l.Shared,
+                ["opacity"] = l.Opacity,
+                ["blend"] = l.Blend.ToString(),
+                ["cels"] = cels,
+            };
+            if (l.Tweens.Count > 0) layerNode["tweens"] = new JsonArray(l.Tweens.Select(TweenToJson).ToArray());
+            if (!l.MaskEnabled) layerNode["maskEnabled"] = false;
+            if (!l.MaskLinked) layerNode["maskLinked"] = false;
+            layers.Add(layerNode);
+        }
+        return layers;
+    }
+
+    private static void LoadFrames(JsonNode root, Document doc)
+    {
+        foreach (var f in root["frames"]?.AsArray() ?? new JsonArray())
+        {
+            var spec = new FrameSpec
+            {
+                Delay = f?["delay"]?.GetValue<int>() ?? 100,
+                Name = f?["name"]?.GetValue<string>() ?? "",
+                Export = f?["export"]?.GetValue<bool>() ?? true,
+            };
+            if (f?["pivot"] is JsonNode pv)
+                spec.Pivot = new Point(pv["x"]?.GetValue<int>() ?? 0, pv["y"]?.GetValue<int>() ?? 0);
+            foreach (var hn in f?["hitboxes"]?.AsArray() ?? new JsonArray())
+                if (hn != null)
+                    spec.Hitboxes.Add(new Hitbox
+                    {
+                        Name = hn["name"]?.GetValue<string>() ?? "hit",
+                        Rect = new Rectangle(hn["x"]?.GetValue<int>() ?? 0, hn["y"]?.GetValue<int>() ?? 0,
+                                             hn["w"]?.GetValue<int>() ?? 0, hn["h"]?.GetValue<int>() ?? 0),
+                    });
+            doc.Frames.Add(spec);
+        }
+        if (doc.Frames.Count == 0) doc.Frames.Add(new FrameSpec());
+    }
+
+    /// <param name="symbols">Masters instances may refer to; null inside a master (no nesting).</param>
+    private static void LoadLayers(JsonNode root, ZipArchive zip, Document doc, LoadResult result, IReadOnlyList<SymbolMaster>? symbols)
+    {
+        foreach (var ln in root["layers"]?.AsArray() ?? new JsonArray())
+        {
+            if (ln == null) continue;
+            var layer = new Layer
+            {
+                Name = ln["name"]?.GetValue<string>() ?? "Layer",
+                Visible = ln["visible"]?.GetValue<bool>() ?? true,
+                Locked = ln["locked"]?.GetValue<bool>() ?? false,
+                Shared = ln["shared"]?.GetValue<bool>() ?? false,
+                Opacity = (byte)(ln["opacity"]?.GetValue<int>() ?? 255),
+                Blend = ParseBlend(ln["blend"]?.GetValue<string>(), result),
+                MaskEnabled = ln["maskEnabled"]?.GetValue<bool>() ?? true,
+                MaskLinked = ln["maskLinked"]?.GetValue<bool>() ?? true,
+            };
+
+
+            foreach (var cn in ln["cels"]?.AsArray() ?? new JsonArray())
+            {
+                if (cn == null) continue;
+                int frameKey = cn["frame"]?.GetValue<int>() ?? 0;
+                var cel = new Cel();
+                foreach (var on in cn["objects"]?.AsArray() ?? new JsonArray())
+                {
+                    if (on == null) continue;
+                    string kind = on["kind"]?.GetValue<string>() ?? "Raster";
+                    if (kind != "Raster")
+                    {
+                        // Forward compatibility: keep going rather than
+                        // refusing the whole file, but never pretend the
+                        // object survived.
+                        result.Warnings.Add($"dropped a '{kind}' object: this build only reads raster objects");
+                        continue;
+                    }
+
+                    if (on["symbol"] is JsonObject sy)
+                    {
+                        string sid = sy["id"]?.GetValue<string>() ?? "";
+                        var master = symbols?.FirstOrDefault(m => m.Id == sid);
+                        // A placeholder keeps later objects at their index (tweens refer to objects by index).
+                        RasterObject Placeholder() => new(ImageOps.NewBitmap(1, 1)) { Name = "(missing symbol)", Visible = false };
+                        if (master == null)
+                        {
+                            result.Warnings.Add(symbols == null ? "a symbol inside a symbol was dropped (not supported)" : $"a symbol instance '{on["name"]?.GetValue<string>()}' has no symbol in the file and was dropped");
+                            cel.Objects.Add(Placeholder());
+                            continue;
+                        }
+                        var sref = new SymbolRef(sid, Enum.TryParse<SymbolPlay>(sy["play"]?.GetValue<string>(), out var pl) && Enum.IsDefined(pl) ? pl : SymbolPlay.Loop,
+                                                 sy["first"]?.GetValue<int>() ?? 0, sy["offset"]?.GetValue<int>() ?? 0);
+                        var like = new RasterObject(SymbolOps.FrameBitmap(master, 0))
+                        {
+                            Name = on["name"]?.GetValue<string>() ?? "Symbol",
+                            Visible = on["visible"]?.GetValue<bool>() ?? true,
+                            Opacity = (byte)(on["opacity"]?.GetValue<int>() ?? 255),
+                            Blend = ParseBlend(on["blend"]?.GetValue<string>(), result),
+                            GroupPath = ObjectGroups.FromJson(on["groups"] as JsonArray),
+                            Effects = on["effects"] is JsonArray sfx ? EffectsFromJson(sfx) : null,
+                            Matrix = on["matrix"] is JsonArray sm && sm.Count == 6 ? Affine.FromArray(sm.Select(v => v!.GetValue<double>()).ToArray()) : Affine.Identity,
+                            Mode = Enum.TryParse<Resample>(on["resample"]?.GetValue<string>(), out var srm) ? srm : Resample.Nearest,
+                        };
+                        try
+                        {
+                            var made = SymbolOps.Make(master, sref, like);
+                            if ((long)made.Width * made.Height > 16_777_216) throw new InvalidDataException("too large");
+                            cel.Objects.Add(made);
+                        }
+                        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or OverflowException or ArgumentException or OutOfMemoryException)
+                        {
+                            result.Warnings.Add($"a symbol instance '{like.Name}' has a damaged placement and was dropped");
+                            cel.Objects.Add(Placeholder());
+                        }
+                        continue;
+                    }
+
+                    string? entryName = on["image"]?.GetValue<string>();
+                    var entry = entryName == null ? null : zip.GetEntry(entryName);
+                    if (entry == null)
+                    {
+                        result.Warnings.Add($"missing image data for '{on["name"]?.GetValue<string>()}'");
+                        continue;
+                    }
+
+                    var bmp = ReadPng(entry);
+                    Bitmap? original = null;
+                    if (on["original"]?.GetValue<string>() is string on2 && zip.GetEntry(on2) is { } oentry)
+                        original = ReadPng(oentry);
+
+                    cel.Objects.Add(new RasterObject(bmp)
+                    {
+                        Original = original,
+                        GroupPath = ObjectGroups.FromJson(on["groups"] as JsonArray),
+                        Primitive = PrimitiveSpec.FromJson(on["primitive"] as JsonObject),
+                        TextSource = TextSource.FromJson(on["textSource"] as JsonObject),
+                        Vector = on["vector"] is JsonObject vn ? VectorFromJson(vn) : null,
+                        Effects = on["effects"] is JsonArray fxa ? EffectsFromJson(fxa) : null,
+                        Matrix = on["matrix"] is JsonArray ma && ma.Count == 6
+                            ? Affine.FromArray(ma.Select(v => v!.GetValue<double>()).ToArray()) : Affine.Identity,
+                        Mode = Enum.TryParse<Resample>(on["resample"]?.GetValue<string>(), out var rm) ? rm : Resample.Nearest,
+                        Name = on["name"]?.GetValue<string>() ?? "Bitmap",
+                        Visible = on["visible"]?.GetValue<bool>() ?? true,
+                        Opacity = (byte)(on["opacity"]?.GetValue<int>() ?? 255),
+                        Blend = ParseBlend(on["blend"]?.GetValue<string>(), result),
+                        X = on["x"]?.GetValue<int>() ?? 0,
+                        Y = on["y"]?.GetValue<int>() ?? 0,
+                    });
+                }
+                if (cn["mask"]?.GetValue<string>() is string mn && zip.GetEntry(mn) is { } mentry)
+                {
+                    var mb = ReadPng(mentry);
+                    if (mb.Width == doc.Width && mb.Height == doc.Height)
+                    {
+                        // normalise to the in-memory form: grey (G times A) in all three channels, A = 255
+                        var mpx = ImageOps.GetPixels(mb);
+                        for (int i = 0; i < mpx.Length; i += 4) { byte g = (byte)(mpx[i + 1] * mpx[i + 3] / 255); mpx[i] = mpx[i + 1] = mpx[i + 2] = g; mpx[i + 3] = 255; }
+                        cel.Mask = new RasterObject(ImageOps.FromPixels(mb.Width, mb.Height, mpx)) { Name = "Mask" };
+                    }
+                    else result.Warnings.Add($"a layer mask on '{layer.Name}' does not match the canvas size and was dropped");
+                }
+                else if (cn["mask"] != null) result.Warnings.Add($"a layer mask on '{layer.Name}' is missing from the file");
+                layer.Cels[frameKey] = cel;
+            }
+            if (!layer.Shared)
+                foreach (var tn in ln["tweens"]?.AsArray() ?? new JsonArray())
+                    if (tn != null && TweenFromJson(tn) is { } span && span.End < doc.Frames.Count &&
+                        layer.Cels.TryGetValue(span.Start, out var sc) && span.ObjectIndex < sc.Objects.Count && sc.Objects[span.ObjectIndex] is RasterObject)
+                        layer.Tweens.Add(span);
+            doc.Layers.Add(layer);
+        }
+
+        if (doc.Layers.Count == 0) doc.Layers.Add(new Layer { Name = "Layer 1" });
     }
 
     private static JsonObject SaveAudio(AudioProject audio, ZipArchive zip)
@@ -489,6 +653,7 @@ public static class FlintFormat
         }
         var o = new JsonObject { ["w"] = a.W, ["h"] = a.H, ["shapes"] = shapes };
         if (a.KeepOrder) o["keepOrder"] = true;   // optional: older files lack it
+        if (a.Path != null) o["path"] = a.Path.ToJson();   // editable source (format 15); the shapes above stay the drawing
         return o;
     }
 
@@ -519,7 +684,8 @@ public static class FlintFormat
 
     private static VectorArt VectorFromJson(JsonObject n)
     {
-        var a = new VectorArt { W = n["w"]?.GetValue<int>() ?? 0, H = n["h"]?.GetValue<int>() ?? 0, KeepOrder = n["keepOrder"]?.GetValue<bool>() ?? false };
+        var a = new VectorArt { W = n["w"]?.GetValue<int>() ?? 0, H = n["h"]?.GetValue<int>() ?? 0, KeepOrder = n["keepOrder"]?.GetValue<bool>() ?? false,
+                                Path = PathSource.FromJson(n["path"] as JsonObject) };
         foreach (var sn in n["shapes"]?.AsArray() ?? new JsonArray())
         {
             var sh = new VShape { Colour = sn!["c"]!.GetValue<uint>() };

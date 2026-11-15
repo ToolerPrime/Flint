@@ -6,7 +6,7 @@ using System.Drawing.Imaging;
 
 namespace Flint;
 
-public enum ExportKind { Gif, Apng, WebP, WebM, Mp4, Png, Sheet, Atlas, Sequence, Wav, Jpeg, Bmp, Tiff, Png8, WebPStill }
+public enum ExportKind { Gif, Apng, WebP, WebM, Mp4, Png, Sheet, Atlas, Sequence, Wav, Jpeg, Bmp, Tiff, Png8, WebPStill, Mov, MovProRes, Mkv, Avif, Aseprite, Html }
 
 public sealed class ExportJob
 {
@@ -18,25 +18,33 @@ public sealed class ExportJob
 
     public int GifColours = 256;
     public bool Dither;
+    /// <summary>Full GIF settings from the export preview; null = GifColours/Dither.</summary>
+    public GifOptions? Gif;
     public bool Loop = true;
     public bool IncludeAudio = true;
     /// <summary>WebM/MP4 CRF, or for WebP 0 = lossless, else quality 1-100.</summary>
     public int Quality = 30;
     public Color Matte = Color.Black;
     public int SheetCols;
+    /// <summary>Video: host size, letterbox, repeat, frame rate, size cap. Null = as before.</summary>
+    public VideoOptions? Video;
 }
 
 public static class Exporter
 {
-    public static bool HasAudio(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.Wav or ExportKind.Atlas;
-    public static bool NeedsFfmpeg(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.WebP or ExportKind.WebPStill;
+    public static bool IsVideo(ExportKind k) => k is ExportKind.WebM or ExportKind.Mp4 or ExportKind.Mov or ExportKind.MovProRes or ExportKind.Mkv or ExportKind.Avif;
+    public static bool HasAudio(ExportKind k) => k is ExportKind.Wav or ExportKind.Atlas || (IsVideo(k) && k != ExportKind.Avif);
+    public static bool NeedsFfmpeg(ExportKind k) => IsVideo(k) || k is ExportKind.WebP or ExportKind.WebPStill;
 
     /// <summary>Run an export; returns a one-line result for the status bar.</summary>
     public static string Run(ExportJob j, IProgress<(double, string)>? p, CancellationToken ct)
     {
         if (j.Kind == ExportKind.Wav) return SaveWav(j);
         if (j.Kind == ExportKind.Atlas) return SaveAtlas(j, p);
+        if (j.Kind == ExportKind.Aseprite) return AsepriteFile.Write(j.Doc, j.Path, j.From, j.To);
 
+        // One-frame formats export exactly the current frame, wherever it is and whatever its export flag.
+        if (j.Kind == ExportKind.Png || StillExport.IsStill(j.Kind)) { j.From = j.To = j.Current; }
         var frames = Render(j, p, ct);
         try
         {
@@ -64,13 +72,22 @@ public static class Exporter
 
                 case ExportKind.WebM:
                 case ExportKind.Mp4:
+                case ExportKind.Mov:
+                case ExportKind.MovProRes:
+                case ExportKind.Mkv:
+                case ExportKind.Avif:
                 {
-                    var kind = j.Kind == ExportKind.Mp4 ? WebmExport.Kind.Mp4 : WebmExport.Kind.WebM;
+                    var kind = j.Kind switch
+                    {
+                        ExportKind.Mp4 => WebmExport.Kind.Mp4, ExportKind.Mov => WebmExport.Kind.Mov,
+                        ExportKind.MovProRes => WebmExport.Kind.MovProRes, ExportKind.Mkv => WebmExport.Kind.Mkv,
+                        ExportKind.Avif => WebmExport.Kind.Avif, _ => WebmExport.Kind.WebM,
+                    };
                     var r = WebmExport.Encode(frames, j.Path, kind, j.Quality, j.Loop, Mix(j), j.Matte, ct,
-                        new Progress<(double, string)>(t => Sub(0.4, 1, t.Item1, t.Item2)));
+                        new Progress<(double, string)>(t => Sub(0.4, 1, t.Item1, t.Item2)), j.Video);
                     if (!r.Ok) throw new InvalidOperationException(r.Message);
-                    return r.Message + (j.Kind == ExportKind.Mp4
-                        ? " — MP4 has no transparency; it was flattened onto the background colour" : "");
+                    return r.Message + (!WebmExport.KeepsAlpha(kind)
+                        ? $" — {j.Kind.ToString().ToUpperInvariant()} has no transparency; it was flattened onto the background colour" : "");
                 }
 
                 case ExportKind.Jpeg:
@@ -90,6 +107,9 @@ public static class Exporter
                 case ExportKind.Sheet:
                     return SaveSheet(j, frames);
 
+                case ExportKind.Html:
+                    return HtmlExport.Save(j, frames);
+
                 case ExportKind.Sequence:
                     for (int i = 0; i < frames.Count; i++)
                     {
@@ -107,14 +127,16 @@ public static class Exporter
     public static List<Frame> Render(ExportJob j, IProgress<(double, string)>? p, CancellationToken ct)
     {
         var list = new List<Frame>();
-        int n = j.To - j.From + 1;
+        var which = j.Doc.ExportedFrames(j.From, j.To).ToList();
+        if (which.Count == 0) throw new InvalidOperationException("every frame in this range is set not to export (Frame > Include when exporting)");
+        int n = which.Count;
         try
         {
-            for (int i = j.From; i <= j.To; i++)
+            foreach (int i in which)
             {
                 ct.ThrowIfCancellationRequested();
                 list.Add(new Frame(j.Doc.RenderFrame(i), j.Doc.Frames[i].Delay));
-                p?.Report((0.4 * (i - j.From + 1) / n, $"rendering frame {i - j.From + 1} of {n}"));
+                p?.Report((0.4 * list.Count / n, $"rendering frame {list.Count} of {n}"));
             }
             return list;
         }
@@ -130,9 +152,19 @@ public static class Exporter
     {
         if (!j.IncludeAudio || j.Doc.Audio.IsEmpty) return null;
         var d = j.Doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
-        double start = Playback.FrameStart(d, j.From);
-        double end = Playback.FrameStart(d, j.To + 1);
-        return AudioMixer.Mix(j.Doc.Audio, start, end - start);
+        var which = j.Doc.ExportedFrames(j.From, j.To).ToList();
+        if (which.Count == j.To - j.From + 1)
+        {
+            double start = Playback.FrameStart(d, j.From);
+            double end = Playback.FrameStart(d, j.To + 1);
+            return AudioMixer.Mix(j.Doc.Audio, start, end - start);
+        }
+        // Frames left out take their sound with them, so picture and sound stay together.
+        var parts = which.Select(i => AudioMixer.Mix(j.Doc.Audio, Playback.FrameStart(d, i), d[i])).ToList();
+        var all = new float[parts.Sum(p => p.Length)];
+        int at = 0;
+        foreach (var p in parts) { Array.Copy(p, 0, all, at, p.Length); at += p.Length; }
+        return all;
     }
 
     /// <summary>
@@ -171,57 +203,24 @@ public static class Exporter
         return $"wrote {System.IO.Path.GetFileName(j.Path)}, {(end - start) / 1000:0.00}s, 48 kHz stereo";
     }
 
+    /// <summary>The GIF settings a job uses: its own, or the simple colours/dither pair.</summary>
+    public static GifOptions GifFor(ExportJob j) => j.Gif?.Clone() ?? new GifOptions
+    {
+        Colours = j.GifColours, Dither = j.Dither ? DitherKind.FloydSteinberg : DitherKind.None,
+    };
+
     private static string SaveGif(ExportJob j, List<Frame> frames, Action<double> sub, CancellationToken ct)
     {
         int w = frames[0].Bmp.Width, h = frames[0].Bmp.Height;
         var all = frames.Select(f => ImageOps.GetPixels(f.Bmp)).ToList();
-
-        bool anyTransparent = all.Any(px =>
-        {
-            for (int i = 3; i < px.Length; i += 4) if (px[i] < 128) return true;
-            return false;
-        });
-        int offset = anyTransparent ? 1 : 0;
-
+        var o = GifFor(j);
         // One palette across every frame: what stops colours shimmering.
-        var hist = Quantizer.BuildHistogram(all, out double total);
-        var colors = Quantizer.Quantize(hist, total, j.GifColours - offset);
-        if (colors.Count == 0) throw new InvalidOperationException("no opaque pixels to build a palette from");
-        var ix = new Quantizer.Indexer(colors);
-        sub(0.2);
-
-        var palette = colors;
-        if (anyTransparent)
-            palette = new Palette
-            {
-                R = new byte[] { 0 }.Concat(colors.R).ToArray(),
-                G = new byte[] { 0 }.Concat(colors.G).ToArray(),
-                B = new byte[] { 0 }.Concat(colors.B).ToArray(),
-            };
-
-        var gifFrames = new List<GifFrame>();
-        for (int i = 0; i < all.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            byte[] indices;
-            if (j.Dither) indices = ImageOps.Dither(all[i], w, h, colors, ix, offset);
-            else
-            {
-                indices = new byte[w * h];
-                var px = all[i];
-                for (int q = 0; q < indices.Length; q++)
-                {
-                    int o = q * 4;
-                    indices[q] = px[o + 3] < 128 ? (byte)0 : (byte)(ix.Nearest(px[o + 2], px[o + 1], px[o]) + offset);
-                }
-            }
-            gifFrames.Add(new GifFrame { Indices = indices, DelayMs = frames[i].Delay });
-            sub(0.2 + 0.7 * (i + 1) / all.Count);
-        }
-
-        byte[] gif = GifEncoder.Encode(w, h, gifFrames, palette, anyTransparent ? 0 : -1, j.Loop);
+        var ix = GifPalette.Index(all, w, h, o, ct);
+        sub(0.5);
+        var gifFrames = ix.Indices.Select((idx, i) => new GifFrame { Indices = idx, DelayMs = frames[i].Delay }).ToList();
+        byte[] gif = GifEncoder.Encode(w, h, gifFrames, ix.Palette, ix.TransparentIndex, j.Loop, o.Optimize, o.Lossy, ct);
         File.WriteAllBytes(j.Path, gif);
-        return $"wrote {System.IO.Path.GetFileName(j.Path)}, {gif.Length / 1024.0:0.0} KB, {palette.Count} colours";
+        return $"wrote {System.IO.Path.GetFileName(j.Path)}, {gif.Length / 1024.0:0.0} KB, {ix.Palette.Count} colours";
     }
 
     private static string SaveSheet(ExportJob j, List<Frame> frames)

@@ -5,16 +5,19 @@ public sealed partial class MainForm
 {
     private OptSource OptimizeSource()
     {
-        var frames = Enumerable.Range(0, _doc.FrameCount).Select(i => _doc.RenderPixels(i)).ToArray();
+        var which = _doc.ExportedFrames(0, _doc.FrameCount - 1).ToList();
+        var frames = which.Select(i => _doc.RenderPixels(i)).ToArray();
         return new OptSource
         {
-            Frames = frames, Delays = _doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray(),
-            W = DocW, H = DocH, Current = _cur, Matte = _bg, Loop = _loop.Checked,
+            Frames = frames, Delays = which.Select(i => Math.Max(1, _doc.Frames[i].Delay)).ToArray(),
+            W = DocW, H = DocH, Current = Math.Max(0, which.IndexOf(_cur)), Matte = _bg, Loop = _loop.Checked,
+            Still = which.Contains(_cur) ? null : _doc.RenderPixels(_cur),
         };
     }
 
     private void ExportPreview()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         StopPlay();
         const long maxPreviewBytes = 128L * 1024 * 1024;
@@ -64,7 +67,7 @@ public sealed partial class MainForm
         {
             Doc = _doc, Kind = kind, Path = path, Current = _cur,
             From = anim ? 0 : _cur, To = anim ? _doc.FrameCount - 1 : _cur,
-            GifColours = s.Colours, Dither = s.Dither, Loop = _loop.Checked, Matte = matte,
+            GifColours = s.Colours, Dither = s.Dither, Gif = s.Gif.Clone(), Loop = _loop.Checked, Matte = matte,
             Quality = s.Format == OptFormat.WebpLossless ? 0 : s.Quality,
         };
     }
@@ -72,6 +75,7 @@ public sealed partial class MainForm
     /// <summary>JPEG, WebP still, BMP, TIFF and PNG-8 picked in the ordinary Export dialog.</summary>
     private void RunStillExport(int formatIndex, string path)
     {
+        LeaveSymbolEdit();
         var (filter, kind) = ExportFormats[formatIndex];
         int quality = 0;
         if (kind == ExportKind.Jpeg) quality = AskQuality("JPEG quality", 90);

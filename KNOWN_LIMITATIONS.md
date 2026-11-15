@@ -55,7 +55,7 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Free-transform handles do not account for skew; skew is set only in the
   numeric transform dialog.
 - Selections are hard-edged: no feathering or anti-aliased edges.
-- No brush softness, smudge, dodge/burn, blur brush or layer groups yet. Bitmap layer masks already have editing controls.
+- No smudge, dodge/burn, blur brush or layer groups yet. Bitmap layer masks already have editing controls.
 - No dedicated zoom tool; zoom is the View menu, the +/− buttons and Ctrl+wheel.
 - Layer lock is not an undoable step.
 - The library is outside undo on purpose: deleting a library image cannot be
@@ -123,8 +123,8 @@ against Fireworks are in `FEATURE_PARITY.md`.
 - Animated GIF frames come from GDI+, which does not always apply GIF
   disposal methods correctly; unusual GIFs may import with traces of earlier
   frames.
-- Palette conversion uses the document's current colours; there is no
-  palette editor or palette file import yet.
+- Import palette conversion uses the document's current colours. Palette
+  files (.act, .gpl, .pal) load in the export colour table, not on import.
 
 ## Export
 
@@ -133,20 +133,124 @@ against Fireworks are in `FEATURE_PARITY.md`.
   that are not multiples of 10 ms are rounded.
 - GIF: 256 colours and one-bit transparency; partial alpha is thresholded at
   50%. Use APNG or WebP for soft edges.
+- GIF Exact palette refuses pictures with more colours than fit; choose
+  Adaptive. Fixed palettes (Web 216, Black and white, Custom) ignore the
+  colour count. Lossy GIF savings depend on the picture: flat pixel art saves
+  little, gradients and photos more. Optimize to size tries lossy steps 0-200 and keeps
+  the most colours that fit; it cannot go below 2 colours at lossy 200.
+- Uniform needs at least 8 colours (a 2x2x2 grid); a lower colour count
+  still gives 8.
+- The GIF optimizer keeps every frame (a held frame is stored as a 1-pixel
+  update), so frame count and timing are exactly as in Flint.
 - MP4 has no alpha; transparency is flattened onto the background colour.
+- MOV H.264, MKV and AVIF have no alpha either; use WebM or MOV ProRes 4444
+  to keep transparency. AVIF carries no sound. ProRes files are large.
+- Video presets: art bigger than the preset size is shrunk to fit (smoothly,
+  so not pixel-sharp). Shorts/TikTok/Reels and X use 30 frames a second, so
+  frame delays that are not multiples of 33 ms are rounded to the nearest
+  video frame. The Discord preset re-encodes at a lower bit rate until the file
+  is under 10 MB; very long videos may not fit and say so.
+- Aseprite: layer groups open as plain layers (a hidden group hides its
+  layers; group opacity is not kept), cel z-index order is ignored, tilemap layers and slices are
+  skipped, tag direction (ping-pong etc.) is not kept, and cel pixels outside
+  the canvas are cut off. Export writes vector and text objects as pixels and
+  saves blend modes Aseprite lacks as Normal. Files were checked against the
+  public format description and a hand-built file, not opened in Aseprite.
+- The HTML page holds every frame in one picture, which browsers limit to
+  16384 pixels a side; very long or very large animations are refused.
+- The HTML page's player script was not run in a browser by the automated
+  tests; the tests check the embedded frames and timing data.
+- Video import holds frames in memory: about 2 GB at most; choose a lower
+  frame rate or a shorter range for long videos.
+
+## Frame helpers
+
+- Animate Selection makes ordinary frames. The motion tween stays editable
+  (Frame > Edit motion tween) until a frame is added or removed inside it,
+  or it is removed; then its frames are plain frames. Edit motion tween
+  rebuilds the tweened object in every generated frame, so changes painted on
+  that object in a middle frame are replaced. If objects are added to or
+  deleted from the tween's first frame (painting there can add one), Edit
+  refuses and asks you to remove and re-create the tween; reordering objects
+  there is not detected. Making the layer shared or merging it down drops
+  its tweens. The timeline does not yet mark
+  which frames belong to a tween. One object per tween. Rotation and scaling resample the object
+  each frame from its original, so pixel art turned by angles that are not
+  quarter turns gets soft or jagged edges.
+- Distribute to Frames and Copy to Frames work on the selected objects of one
+  layer; they refuse shared layers.
+- Exporting a single frame (PNG, JPEG and other stills) ignores "Include when
+  exporting", so you can still export a left-out frame on its own. WAV audio
+  export is the whole timeline's sound; videos and atlas sound skip left-out
+  frames. Saving as an editable Fireworks PNG does not keep the setting.
+
+## Symbols
+
+- Symbols cannot contain other symbols yet. Converting refuses objects with a
+  blend mode other than Normal.
+- Editing a symbol opens it on its own (no editing in place over the
+  document); the steps made inside it become one undo step after Done.
+  Autosave waits until you press Done.
+- Placing an animated symbol puts it on the current frame only; Copy to frames
+  (or a tween) makes it play over frames. Duplicate frame and Add frames copy
+  it showing the same symbol frame. On a shared layer an instance shows one
+  fixed frame.
+- The symbol's canvas is the size of what was converted; what lies outside it
+  is not shown.
+- Painting on the layer, destructive filters and clipping turn an instance
+  into a plain picture, as they do for vectors and text.
+- Fireworks PNG symbols still open as ordinary objects; GIF, video,
+  Aseprite and Fireworks PNG exports flatten symbols.
+- Tween instances: the lower selected instance is the start; move, scale,
+  rotation and opacity are tweened, skew and flips are refused. The end
+  instance's play mode, first frame and effects are not carried over, and the
+  last frame can sit up to half a pixel from it (moves are whole pixels).
+- Converting overlapping semi-transparent objects, or objects on a layer
+  below 100% opacity, can shift some pixels by one level. Break apart splits
+  into objects only when that is exact (whole-pixel placement, full opacity,
+  plain layers, parts not overlapping); otherwise it gives one flat picture.
+- Inside a symbol, tags, guides, the grid and sound are not kept.
+- A symbol instance pasted into another project (or inside a symbol) is saved
+  as a plain picture. A damaged instance in a file opens as an invisible
+  placeholder with a note.
+- Autosave while a symbol is open saves the project as it was before the
+  symbol was opened.
+
+## Paths
+
+- Combine path and Inset/Expand compute exactly on the outlines (Clipper2),
+  then fit smooth curves again: straight edges between corners come back
+  exact; curves (and straight parts that flow into a curve, like the sides
+  of an outset square) stay within about 0.05 px, areas within about 0.1%.
+  Inset path keeps corners sharp (cut square past 4x the inset); growing
+  rounds them.
+- Strokes are centred with round corners and ends; there are no inside or
+  outside strokes or other joins yet. Scaling a path scales its stroke.
+- Fill is even-odd: a path that crosses itself leaves a hole where it
+  overlaps.
+- Rectangles and ovals edited with Subselection or combined become paths;
+  their width/height settings no longer apply (as in Fireworks).
+- Paths in Fireworks PNG files still open as plain vector pictures, not
+  editable paths. Gradient fills on paths are not offered.
+- The A key now picks Subselection (as in Fireworks). On objects that are not
+  paths, and on a path's body, it picks, moves, nudges and deletes like the
+  Object tool. Grouped paths need Alt-click (as with the Object tool) before
+  their points can be edited.
+- Pen points snap to whole pixels (pixel centres for odd-width outlines, so
+  a 1 px line is one pixel wide); point drags move by whole pixels or grid
+  steps, while handles move freely.
 
 ## Format
 
-- `.flint` is at version 3. Builds older than version 3 refuse a version-3
-  file with a clear message instead of opening it with data missing.
-- Vector and text objects do not exist yet; a future file containing them
-  would open in this build with those objects dropped and a warning shown.
+- `.flint` is at version 15. Builds older than a file's version refuse it
+  with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides
 
 - Export preview: for lossy animated WebP the decoded picture is the current frame only (Play holds it); GIF, APNG and lossless WebP preview every frame. PNG-8, JPEG, BMP, TIFF and WebP stills export the current frame. WebP needs ffmpeg.
 - Guides do not follow a canvas crop, rotate or flip; snapping is off until View > Guides > Snap to guides is ticked. Dragging near a visible, unlocked guide grabs it whatever the tool (lock guides to paint beside one).
 - Move/transform snap the dragged box (left/centre/right, top/middle/bottom); scale and rotate do not snap. Lasso, wand and text do not snap.
+- Grid: snapping always pulls to the nearest grid line (no distance limit, as in Fireworks); a guide within 6 screen pixels wins. Moving snaps the nearer box edge to the grid. Grid lines are not drawn when closer than 4 screen pixels; zoom in to see them. Grid changes are saved with the document but are not undo steps; even showing or hiding the grid counts as a change to save. Crop and canvas fit keep the grid on the content; Image Size does not rescale the grid.
 
 ## Productivity commands
 

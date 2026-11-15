@@ -8,11 +8,21 @@ namespace Flint;
 public sealed class LibraryPanel : Panel
 {
     public const string DragFormat = "Flint.LibraryItem";
+    public const string SymbolDragFormat = "Flint.Symbol";
     private const int Thumb = 56;
 
     private readonly ListView _list;
     private readonly ImageList _images = new() { ImageSize = new Size(Thumb, Thumb), ColorDepth = ColorDepth.Depth32Bit };
     private List<LibraryItem> _items = new();
+    private IReadOnlyList<SymbolMaster> _symbols = Array.Empty<SymbolMaster>();
+    private readonly ListViewGroup _gSymbols = new("Symbols"), _gImages = new("Images");
+
+    public event Action<string, Point?>? SymbolPlaceRequested;
+    public event Action<string>? SymbolEditRequested;
+    public event Action<string, string>? SymbolRenameRequested;
+    public event Action<string>? SymbolDeleteRequested;
+
+    private string? SymbolAt(ListViewItem? it) => it?.Tag as string;
 
     /// <summary>Place item i; the point is in screen coordinates, or null for the middle of the view.</summary>
     public event Action<int, Point?>? PlaceRequested;
@@ -27,15 +37,22 @@ public sealed class LibraryPanel : Panel
             Dock = DockStyle.Fill, View = View.LargeIcon, LargeImageList = _images, LabelEdit = true,
             MultiSelect = false, HideSelection = false, AllowDrop = true, BorderStyle = BorderStyle.None,
         };
+        _list.Groups.Add(_gSymbols); _list.Groups.Add(_gImages);
         _list.ItemDrag += (_, e) =>
         {
-            if (e.Item is ListViewItem it) _list.DoDragDrop(new DataObject(DragFormat, it.Index.ToString()), DragDropEffects.Copy);
+            if (e.Item is not ListViewItem it) return;
+            if (SymbolAt(it) is { } id) _list.DoDragDrop(new DataObject(SymbolDragFormat, id), DragDropEffects.Copy);
+            else _list.DoDragDrop(new DataObject(DragFormat, ImageIndex(it).ToString()), DragDropEffects.Copy);
         };
-        _list.DoubleClick += (_, _) => { if (Selected >= 0) PlaceRequested?.Invoke(Selected, null); };
+        _list.DoubleClick += (_, _) => PlaceSelected();
         _list.AfterLabelEdit += (_, e) =>
         {
-            if (e.Label is not { Length: > 0 } name || e.Item < 0 || e.Item >= _items.Count) { e.CancelEdit = e.Label != null; return; }
-            _items[e.Item].Name = name.Trim();
+            var it = e.Item >= 0 && e.Item < _list.Items.Count ? _list.Items[e.Item] : null;
+            if (e.Label is not { Length: > 0 } name || it == null) { e.CancelEdit = e.Label != null; return; }
+            if (SymbolAt(it) is { } id) { e.CancelEdit = true; SymbolRenameRequested?.Invoke(id, name.Trim()); return; }
+            int i = ImageIndex(it);
+            if (i < 0 || i >= _items.Count) { e.CancelEdit = true; return; }
+            _items[i].Name = name.Trim();
             Changed?.Invoke();
         };
         _list.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete) DeleteSelected(); if (e.KeyCode == Keys.F2 && _list.SelectedItems.Count > 0) _list.SelectedItems[0].BeginEdit(); };
@@ -53,7 +70,8 @@ public sealed class LibraryPanel : Panel
             bar.Controls.Add(b);
             return b;
         }
-        B("Place", 56, () => { if (Selected >= 0) PlaceRequested?.Invoke(Selected, null); });
+        B("Place", 56, PlaceSelected);
+        B("Edit symbol", 84, () => { if (SymbolAt(SelectedItem) is { } id) SymbolEditRequested?.Invoke(id); });
         B("Import…", 64, () =>
         {
             using var dlg = new OpenFileDialog { Multiselect = true, Filter = "Images|*.png;*.gif;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|All files|*.*", Title = "Add images to the library" };
@@ -73,20 +91,41 @@ public sealed class LibraryPanel : Panel
         Controls.Add(bar);
     }
 
-    private int Selected => _list.SelectedIndices.Count > 0 ? _list.SelectedIndices[0] : -1;
+    private ListViewItem? SelectedItem => _list.SelectedItems.Count > 0 ? _list.SelectedItems[0] : null;
+    private int ImageIndex(ListViewItem? it) => it == null || it.Tag is string ? -1 : (int)it.Tag!;
+    private int Selected => ImageIndex(SelectedItem);
 
-    public void Bind(List<LibraryItem> items)
+    private void PlaceSelected()
+    {
+        if (SymbolAt(SelectedItem) is { } id) SymbolPlaceRequested?.Invoke(id, null);
+        else if (Selected >= 0) PlaceRequested?.Invoke(Selected, null);
+    }
+
+    public void Bind(List<LibraryItem> items) => Bind(items, _symbols);
+
+    public void Bind(List<LibraryItem> items, IReadOnlyList<SymbolMaster> symbols)
     {
         _items = items;
+        _symbols = symbols;
         _list.BeginUpdate();
         _list.Items.Clear();
         foreach (var img in _images.Images.Cast<Image>().ToList()) img.Dispose();
         _images.Images.Clear();
+        foreach (var m in symbols)
+        {
+            _images.Images.Add(MakeThumb(SymbolOps.FrameBitmap(m, 0)));
+            _list.Items.Add(new ListViewItem(m.Name, _images.Images.Count - 1)
+            {
+                Tag = m.Id, Group = _gSymbols,
+                ToolTipText = $"Symbol '{m.Name}'  {m.Content.Width}×{m.Content.Height}, {m.Content.FrameCount} frame{(m.Content.FrameCount == 1 ? "" : "s")}\nDouble-click or drag to place; Edit symbol to change every copy",
+            });
+        }
         for (int i = 0; i < items.Count; i++)
         {
             _images.Images.Add(MakeThumb(items[i].Pixels));
-            _list.Items.Add(new ListViewItem(items[i].Name, i)
+            _list.Items.Add(new ListViewItem(items[i].Name, _images.Images.Count - 1)
             {
+                Tag = i, Group = _gImages,
                 ToolTipText = $"{items[i].Name}  {items[i].Pixels.Width}×{items[i].Pixels.Height}" + (items[i].Source is { } s ? $"\n{s}" : ""),
             });
         }
@@ -96,6 +135,7 @@ public sealed class LibraryPanel : Panel
 
     private void DeleteSelected()
     {
+        if (SymbolAt(SelectedItem) is { } id) { SymbolDeleteRequested?.Invoke(id); return; }
         int i = Selected;
         if (i < 0) return;
         if (!Program.Headless && MessageBox.Show(this, $"Remove '{_items[i].Name}' from the library?\nLayers already using it keep their copy. This cannot be undone.",

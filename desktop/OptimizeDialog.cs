@@ -12,11 +12,17 @@ internal enum OptFormat { Original, Gif, Png8, Png32, Apng, WebpLossless, WebpLo
 
 internal sealed class OptSettings
 {
-    public OptFormat Format;
-    public int Colours = 128;
-    public bool Dither;
-    public int Quality = 80;
-    public OptSettings Clone() => (OptSettings)MemberwiseClone();
+    public OptFormat Format { get; set; }
+    public int Quality { get; set; } = 80;
+    /// <summary>Palette, dither, lossy and colour-table edits for GIF and PNG-8.</summary>
+    public GifOptions Gif { get; set; } = new() { Colours = 128 };
+    public int Colours { get => Gif.Colours; set => Gif.Colours = value; }
+    public bool Dither
+    {
+        get => Gif.Dither != DitherKind.None;
+        set => Gif.Dither = value ? (Gif.Dither == DitherKind.None ? DitherKind.FloydSteinberg : Gif.Dither) : DitherKind.None;
+    }
+    public OptSettings Clone() { var c = (OptSettings)MemberwiseClone(); c.Gif = Gif.Clone(); return c; }
     public bool UsesColours => Format is OptFormat.Gif or OptFormat.Png8;
     public bool UsesQuality => Format is OptFormat.WebpLossy or OptFormat.Jpeg;
 }
@@ -28,6 +34,9 @@ internal sealed class OptSource
     public int W, H, Current;
     public Color Matte = Color.White;
     public bool Loop = true;
+    /// <summary>The current frame when it is left out of animated exports; stills still use it.</summary>
+    public byte[]? Still;
+    public byte[] CurrentPixels => Still ?? Frames[Current];
 }
 
 internal sealed class OptResult
@@ -36,6 +45,8 @@ internal sealed class OptResult
     public byte[][] Preview = Array.Empty<byte[]>();
     public string Note = "";
     public byte[]? Data;
+    /// <summary>GIF / PNG-8: the colour table, for the Colours window.</summary>
+    public IndexedFrames? Indexed;
     /// <summary>The decoded picture for a frame; a single preview serves every frame.</summary>
     public byte[] PreviewFor(int frame) => Preview.Length > 1 ? Preview[Math.Min(frame, Preview.Length - 1)] : Preview[0];
 }
@@ -61,7 +72,7 @@ internal static class OptimizeEncoder
     {
         int w = src.W, h = src.H, n = src.Frames.Length;
         bool multi = n > 1;
-        var cur = src.Frames[src.Current];
+        var cur = src.CurrentPixels;
         OptResult R(byte[] data, byte[][] preview, string note) =>
             new() { Bytes = data.Length, Data = data, Preview = preview, Note = note };
         string frames = multi ? $", {n} frames" : "";
@@ -73,15 +84,21 @@ internal static class OptimizeEncoder
 
             case OptFormat.Gif:
             {
-                var f = StillExport.Index(src.Frames, w, h, s.Colours, s.Dither, ct);
+                var f = GifPalette.Index(src.Frames, w, h, s.Gif, ct);
                 var gf = f.Indices.Select((ix, i) => new GifFrame { Indices = ix, DelayMs = src.Delays[i] }).ToList();
-                var bytes = GifEncoder.Encode(w, h, gf, f.Palette, f.TransparentIndex, src.Loop);
-                return R(bytes, Enumerable.Range(0, n).Select(f.ToBgra).ToArray(), $"{f.Palette.Count} colours{frames}");
+                var (bytes, shown) = GifEncoder.EncodeEx(w, h, gf, f.Palette, f.TransparentIndex, src.Loop, s.Gif.Optimize, s.Gif.Lossy, ct);
+                var pic = new IndexedFrames { Palette = f.Palette, TransparentIndex = f.TransparentIndex, Indices = shown.ToList(), Source = f.Source };
+                var r = R(bytes, Enumerable.Range(0, n).Select(pic.ToBgra).ToArray(), $"{f.Palette.Count} colours{frames}");
+                r.Indexed = f;
+                return r;
             }
             case OptFormat.Png8:
             {
-                var bytes = StillExport.Png8(cur, w, h, s.Colours, s.Dither, out var pic);
-                return R(bytes, new[] { pic }, "current frame");
+                var g = s.Gif.Clone(); g.Optimize = false; g.Lossy = 0;
+                var f = GifPalette.Index(new[] { cur }, w, h, g, ct);
+                var r = R(StillExport.Png8(f, w, h), new[] { f.ToBgra(0) }, $"{f.Palette.Count} colours, current frame");
+                r.Indexed = f;
+                return r;
             }
             case OptFormat.Png32:
             {
@@ -215,7 +232,15 @@ internal sealed class OptPane : Panel
     private readonly OptSource _src;
     private readonly ComboBox _fmt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
     private readonly NumericUpDown _colours = new() { Minimum = 2, Maximum = 256, Value = 128, Width = 52 };
-    private readonly CheckBox _dither = new() { Text = "dither", AutoSize = true };
+    private readonly ComboBox _palette = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 118, AccessibleName = "Palette type" };
+    private readonly ComboBox _dither = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150, AccessibleName = "Dither" };
+    private readonly NumericUpDown _ditherAmount = new() { Minimum = 0, Maximum = 100, Value = 100, Width = 48, AccessibleName = "Dither amount percent" };
+    private readonly NumericUpDown _lossy = new() { Minimum = 0, Maximum = 200, Value = 0, Width = 52, AccessibleName = "Lossy GIF amount" };
+    private readonly Label _lblLossy = new() { Text = "Lossy", AutoSize = true, Margin = new Padding(6, 6, 0, 0) };
+    private readonly Button _table = new() { Text = "Colour table…", AutoSize = true };
+    private readonly Button _toSize = new() { Text = "Optimize to size…", AutoSize = true };
+    /// <summary>The GIF settings that have no control here (colour-table edits, loaded palette, flags).</summary>
+    private GifOptions _gif = new();
     private readonly NumericUpDown _quality = new() { Minimum = 1, Maximum = 100, Value = 80, Width = 52 };
     private readonly Label _lblColours = new() { Text = "Colours", AutoSize = true, Margin = new Padding(6, 6, 0, 0) };
     private readonly Label _lblQuality = new() { Text = "Quality", AutoSize = true, Margin = new Padding(6, 6, 0, 0) };
@@ -241,8 +266,17 @@ internal sealed class OptPane : Panel
         BorderStyle = BorderStyle.FixedSingle;
         foreach (OptFormat f in Enum.GetValues<OptFormat>()) _fmt.Items.Add(OptimizeEncoder.Describe(f));
         _fmt.SelectedIndex = (int)first;
+        foreach (PaletteKind k in Enum.GetValues<PaletteKind>()) _palette.Items.Add(GifOptions.Describe(k));
+        foreach (DitherKind k in Enum.GetValues<DitherKind>()) _dither.Items.Add(GifOptions.Describe(k));
+        _palette.SelectedIndex = 0; _dither.SelectedIndex = 0;
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
-        top.Controls.AddRange(new Control[] { _fmt, _lblColours, _colours, _dither, _lblQuality, _quality });
+        top.Controls.AddRange(new Control[] { _fmt, _palette, _lblColours, _colours, _dither, _ditherAmount, _lblLossy, _lossy, _table, _toSize, _lblQuality, _quality });
+        var tips = Theme.MakeTip();
+        tips.SetToolTip(_ditherAmount, "Dither strength, percent");
+        tips.SetToolTip(_lossy, "Lossy GIF: 0 is exact. Higher values allow near colours for a smaller file");
+        tips.SetToolTip(_table, "See the colours; lock, edit or make one transparent; load or save a palette");
+        tips.SetToolTip(_toSize, "Pick the most colours that fit a file size you choose");
+        Disposed += (_, _) => tips.Dispose();
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 30 };
         bottom.Controls.Add(_size);
         bottom.Controls.Add(_export);
@@ -252,7 +286,16 @@ internal sealed class OptPane : Panel
         _fmt.SelectedIndexChanged += (_, _) => { SyncControls(); Reencode(); };
         _colours.ValueChanged += (_, _) => Reencode();
         _quality.ValueChanged += (_, _) => Reencode();
-        _dither.CheckedChanged += (_, _) => Reencode();
+        _dither.SelectedIndexChanged += (_, _) => { SyncControls(); Reencode(); };
+        _palette.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_loading && (PaletteKind)_palette.SelectedIndex == PaletteKind.Custom && _gif.Custom == null && !LoadPaletteFile()) { _palette.SelectedIndex = 0; return; }
+            Reencode();
+        };
+        _ditherAmount.ValueChanged += (_, _) => Reencode();
+        _lossy.ValueChanged += (_, _) => Reencode();
+        _table.Click += (_, _) => ShowColourTable();
+        _toSize.Click += (_, _) => AskOptimizeToSize();
         _export.Click += (_, _) => ExportRequested?.Invoke(Settings);
         _ffmpegOk = ffmpegOk;
         SyncControls();
@@ -261,11 +304,16 @@ internal sealed class OptPane : Panel
 
     private readonly Func<bool> _ffmpegOk;
 
-    public OptSettings Settings => new()
+    public OptSettings Settings
     {
-        Format = (OptFormat)_fmt.SelectedIndex, Colours = (int)_colours.Value,
-        Dither = _dither.Checked, Quality = (int)_quality.Value,
-    };
+        get
+        {
+            var g = _gif.Clone();
+            g.Palette = (PaletteKind)_palette.SelectedIndex; g.Colours = (int)_colours.Value;
+            g.Dither = (DitherKind)_dither.SelectedIndex; g.DitherAmount = (int)_ditherAmount.Value; g.Lossy = (int)_lossy.Value;
+            return new OptSettings { Format = (OptFormat)_fmt.SelectedIndex, Quality = (int)_quality.Value, Gif = g };
+        }
+    }
 
     /// <summary>The Original tab: this pane shows the composite and its settings are locked.</summary>
     public void ForceOriginal(bool on)
@@ -285,7 +333,10 @@ internal sealed class OptPane : Panel
     {
         _loading = true;
         _fmt.SelectedIndex = (int)s.Format; _colours.Value = Math.Clamp(s.Colours, 2, 256);
-        _dither.Checked = s.Dither; _quality.Value = Math.Clamp(s.Quality, 1, 100);
+        _quality.Value = Math.Clamp(s.Quality, 1, 100);
+        _gif = s.Gif.Clone();
+        _palette.SelectedIndex = (int)s.Gif.Palette; _dither.SelectedIndex = (int)s.Gif.Dither;
+        _ditherAmount.Value = Math.Clamp(s.Gif.DitherAmount, 0, 100); _lossy.Value = Math.Clamp(s.Gif.Lossy, 0, 200);
         _loading = false;
         SyncControls();
         Reencode();
@@ -294,7 +345,9 @@ internal sealed class OptPane : Panel
     private void SyncControls()
     {
         var s = Settings;
-        _lblColours.Visible = _colours.Visible = _dither.Visible = s.UsesColours;
+        _lblColours.Visible = _colours.Visible = _dither.Visible = _palette.Visible = _table.Visible = _toSize.Visible = s.UsesColours;
+        _ditherAmount.Visible = s.UsesColours && s.Gif.Dither != DitherKind.None;
+        _lblLossy.Visible = _lossy.Visible = s.Format == OptFormat.Gif;
         _lblQuality.Visible = _quality.Visible = s.UsesQuality;
     }
 
@@ -303,6 +356,49 @@ internal sealed class OptPane : Panel
         _frame = frame;
         var px = _result?.PreviewFor(frame) ?? _src.Frames[frame];
         _canvas.Show(px, _src.W, _src.H);
+    }
+
+    private bool LoadPaletteFile()
+    {
+        using var open = new OpenFileDialog { Title = "Load palette", Filter = PaletteFiles.Filter };
+        if (open.ShowDialog(this) != DialogResult.OK) return false;
+        try { _gif.Custom = PaletteFiles.Load(open.FileName); }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Load palette", MessageBoxButtons.OK, MessageBoxIcon.Warning); return false; }
+        return true;
+    }
+
+    /// <summary>The frames a pane's colours come from (PNG-8 takes the current one).</summary>
+    internal IList<byte[]> PaletteFrames(OptFormat f) => f == OptFormat.Png8 ? new[] { _src.CurrentPixels } : _src.Frames;
+
+    private void ShowColourTable()
+    {
+        var s = Settings;
+        using var dlg = new ColourTableDialog(s.Gif, g => GifPalette.Index(PaletteFrames(s.Format), _src.W, _src.H, g));
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var n = s.Clone(); n.Gif = dlg.Options;
+        SetSettings(n);
+    }
+
+    private void AskOptimizeToSize()
+    {
+        long now = _result?.Bytes > 0 ? _result.Bytes : 100 * 1024;
+        int kb = TargetDialog.Ask(this, (int)Math.Max(1, now / 1024 * 7 / 10));
+        if (kb <= 0) return;
+        var start = Settings;
+        OptSettings? found = null;
+        var (ok, msg) = ProgressDialog.Run(FindForm(), "Optimize to size", (p, ct) =>
+        {
+            found = OptimizeToSize.Find(start, _src, kb * 1024L, ct);
+            return found == null ? "" : "found";
+        });
+        if (!ok) { if (msg != "cancelled") MessageBox.Show(this, msg, "Optimize to size"); return; }
+        if (found == null)
+        {
+            MessageBox.Show(this, $"This cannot be made as small as {kb} KB, even with 2 colours and full lossy. Try fewer frames or a smaller canvas.",
+                "Optimize to size", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        SetSettings(found);
     }
 
     public void Reencode()
@@ -373,7 +469,8 @@ internal sealed class OptimizeDialog : Form
     private readonly Button _play = new() { Text = "Play", AutoSize = true };
     private readonly Button _matte = new() { Text = "Matte…", AutoSize = true };
     private readonly System.Windows.Forms.Timer _timer = new();
-    private int _mode = 2, _frame;
+    private readonly ComboBox _presets = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150, AccessibleName = "Export presets" };
+    private int _mode = 2, _frame, _active;
 
     public OptSettings? Chosen { get; private set; }
     public bool OtherFormatsChosen { get; private set; }
@@ -414,6 +511,13 @@ internal sealed class OptimizeDialog : Form
             AccessibleName = "Close export preview" };
         CancelButton = close;
         bar.Controls.AddRange(new Control[] { zo, zi, fit, _play, _matte });
+        var savePreset = new Button { Text = "Save preset…", AutoSize = true, AccessibleName = "Save the selected pane's settings as a preset" };
+        var delPreset = new Button { Text = "Delete preset", AutoSize = true };
+        savePreset.Click += (_, _) => SavePreset();
+        delPreset.Click += (_, _) => { if (_presets.SelectedIndex > 0) { ExportPresets.Delete((string)_presets.SelectedItem!); FillPresets(); } };
+        _presets.SelectedIndexChanged += (_, _) => { if (_presets.SelectedIndex > 0) ApplyPreset((string)_presets.SelectedItem!); };
+        bar.Controls.AddRange(new Control[] { _presets, savePreset, delPreset });
+        FillPresets();
         if (showOtherFormats)
         {
             var more = new Button { Text = "More formats…", AutoSize = true,
@@ -430,6 +534,9 @@ internal sealed class OptimizeDialog : Form
         {
             _panes[i] = new OptPane(src, _view, first[i], () => WebmExport.Find() != null);
             _panes[i].ExportRequested += s => { Chosen = s; DialogResult = DialogResult.OK; Close(); };
+            int pane = i;
+            _panes[i].Enter += (_, _) => _active = pane;
+            _panes[i].MouseDown += (_, _) => _active = pane;
             _stage.Controls.Add(_panes[i]);
         }
         Controls.Add(_stage);
@@ -507,10 +614,222 @@ internal sealed class OptimizeDialog : Form
         UpdateInfo();
     }
 
+    private void FillPresets()
+    {
+        _presets.Items.Clear();
+        _presets.Items.Add("Presets…");
+        foreach (var name in ExportPresets.Load().Keys) _presets.Items.Add(name);
+        _presets.SelectedIndex = 0;
+    }
+
+    /// <summary>The pane presets go to and come from: the one last clicked, if showing.</summary>
+    private OptPane ActivePane => _panes[_active < PaneCount ? _active : 0];
+
+    private void ApplyPreset(string name)
+    {
+        if (ExportPresets.Load().TryGetValue(name, out var s) && _mode != 0) ActivePane.SetSettings(s);
+    }
+
+    private void SavePreset()
+    {
+        if (_mode == 0) { MessageBox.Show(this, "Choose Preview, 2-Up or 4-Up first: the Original pane has no settings.", "Save preset"); return; }
+        using var dlg = new RenameDialog("My preset") { Text = "Save export preset" };
+        if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.Value)) return;
+        ExportPresets.Save(dlg.Value.Trim(), ActivePane.Settings);
+        FillPresets();
+        _presets.SelectedItem = dlg.Value.Trim();
+    }
+
     // ---------- test access ----------
+    internal void TestApplyPreset(string name) => ApplyPreset(name);
+    internal void TestSetActive(int pane) => _active = pane;
     internal OptPane Pane(int i) => _panes[i];
     internal bool Idle => _panes.Take(PaneCount).All(p => !p.Busy);
     internal void TestMode(int mode) { _modes[mode].Checked = true; SetMode(mode); }
     internal SharedView View => _view;
     internal void TestAdvance() => Advance();
+}
+
+/// <summary>Ask for a target file size in KB; 0 when cancelled.</summary>
+internal static class TargetDialog
+{
+    public static int Ask(IWin32Window owner, int def)
+    {
+        using var f = new Form
+        {
+            Text = "Optimize to size", FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+            StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(280, 90), ShowInTaskbar = false,
+        };
+        var n = new NumericUpDown { Minimum = 1, Maximum = 1_000_000, Value = Math.Clamp(def, 1, 1_000_000), Left = 150, Top = 14, Width = 90, AccessibleName = "Target size in KB" };
+        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Left = 70, Top = 52 };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Left = 152, Top = 52 };
+        f.Controls.AddRange(new Control[] { new Label { Text = "Largest file size (KB)", Left = 14, Top = 18, AutoSize = true }, n, ok, cancel });
+        f.AcceptButton = ok; f.CancelButton = cancel;
+        return f.ShowDialog(owner) == DialogResult.OK ? (int)n.Value : 0;
+    }
+}
+
+/// <summary>
+/// The colour table (Fireworks' Optimize panel swatches): lock a colour,
+/// edit it, make it transparent, load or save the palette, remove unused.
+/// Works on a copy of the settings; OK hands them back.
+/// </summary>
+internal sealed class ColourTableDialog : Form
+{
+    private readonly Func<GifOptions, IndexedFrames> _build;
+    private readonly Panel _grid = new DoubleBufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.FromArgb(60, 62, 68) };
+    private readonly Label _info = new() { Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly CheckBox _removeUnused = new() { Text = "Remove unused colours", AutoSize = true };
+    private IndexedFrames? _ix;
+    private int _sel = -1;
+    private const int Cell = 20, PerRow = 16;
+
+    private sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; } }
+
+    public GifOptions Options { get; private set; }
+
+    public ColourTableDialog(GifOptions start, Func<GifOptions, IndexedFrames> build)
+    {
+        Options = start.Clone();
+        _build = build;
+        Text = "Colour table";
+        ClientSize = new Size(PerRow * Cell + 200, 16 * Cell + 60);
+        FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+        var side = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 190, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(6) };
+        void B(string t, Action a, string name) { var b = new Button { Text = t, Width = 170, AccessibleName = name }; b.Click += (_, _) => a(); side.Controls.Add(b); }
+        B("Lock / unlock", ToggleLock, "Lock or unlock the selected colour");
+        B("Edit colour…", EditColour, "Edit the selected colour");
+        B("Transparent on / off", ToggleTransparent, "Make the selected colour transparent");
+        B("Clear all edits", () => { Options.Locked.Clear(); Options.Edits.Clear(); Options.Transparent.Clear(); Rebuild(); }, "Clear locks, edits and transparency");
+        B("Load palette…", LoadPalette, "Load a palette file");
+        B("Save palette…", SavePalette, "Save the palette to a file");
+        _removeUnused.Checked = Options.RemoveUnused;
+        _removeUnused.CheckedChanged += (_, _) => { Options.RemoveUnused = _removeUnused.Checked; Rebuild(); };
+        side.Controls.Add(_removeUnused);
+        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 80 };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 80 };
+        side.Controls.Add(ok); side.Controls.Add(cancel);
+        AcceptButton = ok; CancelButton = cancel;
+        Controls.Add(_grid); Controls.Add(_info); Controls.Add(side);
+        _grid.Paint += PaintGrid;
+        _grid.MouseDown += (_, e) =>
+        {
+            int col = e.X / Cell, i = (e.Y - _grid.AutoScrollPosition.Y) / Cell * PerRow + col;
+            if (col < PerRow && _ix != null && i < _ix.Palette.Count) { _sel = i; ShowInfo(); _grid.Invalidate(); }
+        };
+        _grid.MouseDoubleClick += (_, _) => EditColour();
+        Rebuild();
+    }
+
+    private int SelSource => _ix != null && _sel >= 0 && _sel < _ix.Source.Count ? _ix.Source[_sel] : -1;
+
+    private void Rebuild()
+    {
+        int keep = SelSource;
+        try { _ix = _build(Options); }
+        catch (Exception ex) { _ix = null; _info.Text = ex.Message; _grid.Invalidate(); return; }
+        _sel = keep < 0 ? -1 : _ix.Source.IndexOf(keep);
+        _grid.AutoScrollMinSize = new Size(PerRow * Cell, (_ix.Palette.Count + PerRow - 1) / PerRow * Cell);
+        ShowInfo();
+        _grid.Invalidate();
+    }
+
+    private void ShowInfo()
+    {
+        if (_ix == null) return;
+        string t = $"{_ix.Palette.Count} colours";
+        if (_sel >= 0)
+        {
+            int src = SelSource;
+            t += src < 0 ? "   selected: the transparent slot" :
+                 $"   selected #{src:X6}" + (Options.Locked.Contains(src) ? ", locked" : "") +
+                 (Options.Edits.TryGetValue(src, out int e) ? $", edited to #{e:X6}" : "") +
+                 (Options.Transparent.Contains(src) ? ", transparent" : "");
+        }
+        _info.Text = t;
+    }
+
+    private void PaintGrid(object? sender, PaintEventArgs e)
+    {
+        if (_ix == null) return;
+        var g = e.Graphics;
+        g.TranslateTransform(_grid.AutoScrollPosition.X, _grid.AutoScrollPosition.Y);
+        for (int i = 0; i < _ix.Palette.Count; i++)
+        {
+            var r = new Rectangle(i % PerRow * Cell + 1, i / PerRow * Cell + 1, Cell - 2, Cell - 2);
+            int src = i < _ix.Source.Count ? _ix.Source[i] : 0;
+            if (src < 0 || Options.Transparent.Contains(src))
+            {
+                g.FillRectangle(Brushes.White, r);
+                g.FillRectangle(Brushes.LightGray, r.X, r.Y, r.Width / 2, r.Height / 2);
+                g.FillRectangle(Brushes.LightGray, r.X + r.Width / 2, r.Y + r.Height / 2, r.Width - r.Width / 2, r.Height - r.Height / 2);
+            }
+            else
+            {
+                using var b = new SolidBrush(Color.FromArgb(_ix.Palette.R[i], _ix.Palette.G[i], _ix.Palette.B[i]));
+                g.FillRectangle(b, r);
+            }
+            if (src >= 0 && Options.Locked.Contains(src)) g.FillRectangle(Brushes.Black, r.Right - 6, r.Bottom - 6, 6, 6);
+            if (src >= 0 && Options.Edits.ContainsKey(src)) g.FillEllipse(Brushes.White, r.X + 1, r.Y + 1, 6, 6);
+            if (i == _sel) { r.Inflate(1, 1); g.DrawRectangle(Pens.Yellow, r); }
+        }
+    }
+
+    private void ToggleLock()
+    {
+        int src = SelSource;
+        if (src < 0) return;
+        if (!Options.Locked.Remove(src)) Options.Locked.Add(src);
+        Rebuild();
+    }
+
+    private void EditColour()
+    {
+        int src = SelSource;
+        if (src < 0 || _ix == null) return;
+        var now = Color.FromArgb(_ix.Palette.R[_sel], _ix.Palette.G[_sel], _ix.Palette.B[_sel]);
+        if (ColourPickerDialog.Pick(this, now, "Edit colour") is not { } c) return;
+        SetEdit(src, c.R << 16 | c.G << 8 | c.B);
+    }
+
+    private void SetEdit(int src, int packed)
+    {
+        if (packed == src) Options.Edits.Remove(src); else Options.Edits[src] = packed;
+        Rebuild();
+    }
+
+    private void ToggleTransparent()
+    {
+        int src = SelSource;
+        if (src < 0) return;
+        if (!Options.Transparent.Remove(src)) Options.Transparent.Add(src);
+        Rebuild();
+    }
+
+    private void LoadPalette()
+    {
+        using var open = new OpenFileDialog { Title = "Load palette", Filter = PaletteFiles.Filter };
+        if (open.ShowDialog(this) != DialogResult.OK) return;
+        try { Options.Custom = PaletteFiles.Load(open.FileName); Options.Palette = PaletteKind.Custom; }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Load palette", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        Rebuild();
+    }
+
+    private void SavePalette()
+    {
+        if (_ix == null) return;
+        using var save = new SaveFileDialog { Title = "Save palette", Filter = "Adobe Colour Table (*.act)|*.act|GIMP palette (*.gpl)|*.gpl|JASC palette (*.pal)|*.pal", FileName = "palette" };
+        if (save.ShowDialog(this) != DialogResult.OK) return;
+        var cols = Enumerable.Range(0, _ix.Palette.Count).Where(i => i != _ix.TransparentIndex)
+            .Select(i => _ix.Palette.R[i] << 16 | _ix.Palette.G[i] << 8 | _ix.Palette.B[i]).ToList();
+        PaletteFiles.Save(save.FileName, cols);
+    }
+
+    // ---------- test access ----------
+    internal IndexedFrames? Table => _ix;
+    internal void TestSelect(int i) { _sel = i; ShowInfo(); }
+    internal void TestLock() => ToggleLock();
+    internal void TestTransparent() => ToggleTransparent();
+    internal void TestEdit(int packed) { if (SelSource >= 0) SetEdit(SelSource, packed); }
 }

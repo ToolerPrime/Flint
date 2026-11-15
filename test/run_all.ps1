@@ -35,6 +35,28 @@ Write-Host "`n--- motion tween, frame insertion, undo and persistence ---"
 & $exe --motiontweentest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "motiontweentest failed" }
 
+Write-Host "`n--- paths: pen, subselection, combine and alter path ---"
+& $exe --pathfittest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "pathfittest failed" }
+& $exe --pathtest "$out\path" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "pathtest failed" }
+
+Write-Host "`n--- symbols: convert, edit, instances, break apart, tween instances, format 14 ---"
+& $exe --symboltest "$out\sym" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "symboltest failed" }
+
+Write-Host "`n--- grid: snapping, drawing, saved per document ---"
+& $exe --gridtest "$out\grid" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "gridtest failed" }
+
+Write-Host "`n--- tweens: easing, curved paths, editable spans ---"
+& $exe --tweentest "$out\tween" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "tweentest failed" }
+
+Write-Host "`n--- frame helpers: animate, distribute, copy, reverse, add, include when exporting ---"
+& $exe --framehelperstest "$out\frames" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "framehelperstest failed" }
+
 Write-Host "`n--- audio: mixer, decoding, storage, sync ---"
 & $exe --audiotest "$out\audio" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "audiotest failed" }
@@ -64,6 +86,18 @@ if ($LASTEXITCODE -ne 0) { throw "formattest failed" }
 Write-Host "`n--- still formats (JPEG, WebP, BMP, TIFF, PNG-8) and the export preview ---"
 & $exe --exporttest "$out\export" | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "exporttest failed" }
+
+Write-Host "`n--- video host formats and presets (needs ffmpeg) ---"
+& $exe --videotest "$out\video" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "videotest failed" }
+
+Write-Host "`n--- Aseprite files, HTML player page, video import ---"
+& $exe --interchangetest "$out\inter" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "interchangetest failed" }
+
+Write-Host "`n--- GIF palettes, dithers, lossy, frame cropping (Pillow), presets ---"
+& $exe --giftest "$out\gif" | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "giftest failed" }
 
 Write-Host "`n--- rulers, guides, snapping, .flint guides ---"
 & $exe --guidestest "$out\guides" | Out-Host

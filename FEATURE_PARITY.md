@@ -15,8 +15,8 @@ test or a verified check. A button that exists is not a feature.
 with audio. New rectangles/ellipses and text retain editable source properties,
 and Object (Q) selects objects and nested groups. Bitmap layer masks, live effects, guides,
 export preview and movable workspace groups also exist. It is not a complete
-Fireworks replacement: pen/node editing, object distribution,
-linked symbols and advanced Auto Shapes remain missing.
+Fireworks replacement: object distribution and advanced Auto Shapes remain
+missing; pen paths and symbols are newer and less tested by hand.
 
 **Testing caveat:** every "Working" below is verified by automated tests that
 drive the real code headless, plus rendered screenshots of the real window.
@@ -30,7 +30,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | New document | Working | Any size, transparent or filled |
 | Open / Save / Save As | Working | Native `.flint`, atomic, round trip tested |
 | Autosave and crash recovery | Working | Every 60 s while unsaved; tested by killing a real process |
-| Multiple open documents | Missing | One document per window |
+| Multiple open documents | Working | Projects open side by side as tabs |
 | Canvas size | Working | Anchor centre or top-left |
 | Image size (resample) | Working | Nearest-neighbour (exact) or smooth |
 | Transparent background | Working | |
@@ -38,6 +38,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Rulers | Working | Toggle through View; guide suite verifies painting and coordinates |
 | Guides, snapping | Working | Ruler guides, canvas edges/centre and optional pixel snapping; audio clips snap to frame starts |
 | Pixel grid | Working | From 8× zoom |
+| Grid with snapping | Working | View > Grid: show, snap, spacing across/down, offset, colour; marquee, shapes and Move snap to it (guides close by win); saved per document (.flint format 13) |
 | Canvas rotation | Missing | |
 | Zoom | Working | Integer 1–32×; Ctrl+wheel around the cursor; actual pixels; fit on screen |
 | Clipboard (cut/copy/paste pixels) | Working | Cut, copy, copy merged, paste to a new layer; PNG with alpha for other apps |
@@ -49,7 +50,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Pencil | Working | Pixel-exact, square nib 1–64 |
-| Brush (soft, textured) | Missing | |
+| Brush (soft, textured) | Working | Round soft brush with presets, Brush Settings (dynamics, scatter, texture noise, wet edges), blend modes |
 | Eraser | Working | |
 | Paint bucket | Working | Tolerance, respects selection |
 | Gradient fill | Working | Linear, radial, or fading to transparent |
@@ -76,11 +77,11 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Line, rectangle, ellipse | Partial | New rectangles/ellipses retain editable geometry/colour/fill/stroke; line remains raster. Object (Q) selects one object |
-| Pen, Bézier paths, node editing | Missing | Model reserves an object kind for it |
+| Pen, Bézier paths, node editing | Working | Pen (P): click corners, drag curves, close on the first point. Subselection (A): drag points and handles (smooth points stay smooth, Alt breaks them), box-select, Delete, double-click to add a point. Fill/stroke editable afterwards; rectangles and ovals turn into paths when edited this way; saved in .flint (format 15) |
 | Polygon, freeform | Missing | |
 | Stroke / fill properties, gradients, patterns | Missing | |
 | Align, distribute, group | Partial | Multi-object canvas alignment and nested per-cel grouping; distribution and isolated group blending remain missing |
-| Boolean path operations | Missing | |
+| Boolean path operations | Working | Combine path: Union, Intersect, Punch, Crop. Alter path: Simplify, Expand stroke, Inset path. Exact polygon maths (Clipper2) refitted to smooth curves; straight edges between corners stay exact |
 | Trace bitmap to vectors | Working | Colours, minimum area, smoothing, simplify, smooth or hard edges, live preview; exact at smoothing 0; shapes stay sharp when scaled or rotated |
 | Auto Shapes | Missing | |
 
@@ -105,19 +106,27 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Merge down, flatten | Working | |
 | Layer groups | Missing | |
 | Masks, clipping | Partial | Bitmap cel/layer masks can be added, painted, enabled and applied; no vector clipping groups |
-| Symbols, instances, live effects, styles | Partial | Live effects have add/edit/remove/reorder controls; copy/paste appearance exists. No saved style preset library or symbol masters; imported symbol instances expand into ordinary objects |
+| Symbols, instances, live effects, styles | Partial | Graphic/animation symbols with instances (see Animation). Live effects have add/edit/remove/reorder controls; copy/paste appearance exists. No saved style preset library or button symbols; Fireworks PNG symbol instances still expand into ordinary objects |
 
 ## Optimisation and export
 
 | Feature | Status | Notes |
 |---|---|---|
 | Original / Preview / 2-Up / 4-Up | Working | Export preview dialog compares settings |
-| Indexed palette, colour count, dither | Working | One palette across all frames, no flicker |
-| Animated GIF | Working | Verified with Pillow |
+| Indexed palette, colour count, dither | Working | One palette across all frames, no flicker. Palettes: Adaptive, Exact, Web 216, Web Adaptive, Uniform, Greyscale, Black and white, Custom (loaded). Dither: none, diffusion (Floyd-Steinberg), pattern (Bayer), noise, with an amount |
+| Colour table | Working | In the export preview: lock, edit or make a colour transparent; remove unused colours; load/save .act, .gpl, .pal |
+| Lossy GIF, Optimize to size | Working | Lossy slider 0-200; Optimize to size finds the most colours (least lossy on a tie) under a KB target |
+| Export presets | Working | Save, choose and delete named export settings in the export preview |
+| Animated GIF | Working | Verified with Pillow. Frames store only the changed rectangle and reuse unchanged pixels (decodes identical, smaller files) |
 | Animated PNG (APNG) | Working | Exact pixels, full alpha, exact per-frame delays; verified with PIL |
 | Animated WebP | Working | Lossless, exact delays incl. last frame; verified with PIL |
 | WebM (VP9 + alpha + Opus audio) | Working | Audio sync verified to 0.0 ms |
 | MP4 (H.264 + AAC) | Working | No alpha, flattened onto background; sync verified |
+| MOV (H.264, or ProRes 4444 with alpha), MKV (H.264), animated AVIF | Working | Through ffmpeg; checked with ffprobe and by decoding frames back. AVIF has no alpha or sound |
+| Video host presets | Working | YouTube 1080p and 4K, Shorts/TikTok/Reels 1080x1920, X 1280x720, Discord (under 10 MB), Vimeo (ProRes). Pixel art scaled by a whole number with nearest neighbour, then letterboxed in a colour you pick; repeat N times or to a minimum length |
+| Aseprite .aseprite / .ase | Partial | Checked against the public format and a hand-built file, not yet opened in Aseprite itself. Open and export: layers (name, opacity, blend, visibility), frames, durations, tags, shared layers as linked cels. Groups open as plain layers; tilemaps skipped |
+| HTML player page | Working | One self-contained .html: every frame embedded, exact delays, loop or once, sharp scaling |
+| Import video | Working | MP4, WebM and MOV ProRes keep transparency; MKV, AVI too. Through ffmpeg, with frame rate and time range; turned phone videos come in upright |
 | PNG frame, sprite sheet, PNG sequence | Working | Pixel-exact |
 | Texture atlas + JSON | Working | Trimmed, deduplicated, Aseprite JSON; rebuild test exact |
 | WAV audio | Working | 48 kHz stereo |
@@ -136,13 +145,18 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Time-scaled timeline | Working | Frame width = duration, so audio lines up |
 | Drag to reorder, drag edge to retime | Working | |
 | Insert, duplicate, copy, paste, delete frames | Working | |
+| Add Frames dialog | Working | How many, before/after the current frame or at the end, empty or copies |
+| Animate Selection | Working | Frames, move distance and direction, scale to %, opacity from/to, rotate clockwise or counter-clockwise; makes ordinary frames (not a symbol) |
+| Distribute to Frames, Copy to Frames | Working | Each selected object to its own frame; copies to all, previous, next or a range of frames |
+| Reverse Frames | Working | All frames or a range |
+| Include when exporting (per frame) | Working | Every exporter skips left-out frames, and video sound drops their part too; saved in .flint (format 11) |
 | Frame names | Working | Double-click |
 | Animation tags (Idle, Walk…) | Working | Follow their frames when frames move |
 | Onion skin | Working | Before/after counts, opacity, red/blue tint |
 | Loop, ping-pong, once; 0.25×–4× speed | Working | Timing tested in the real form |
 | Timeline zoom and scroll | Working | Ctrl+wheel, wheel |
-| Motion tween | Partial | Linear movement of one object across generated frames. Editable tween spans, easing, and curved paths are pending. |
-| Animation symbols | Missing | |
+| Motion tween | Working | One object: move straight or along a curve (even speed), scale to %, rotate either way, fade; eases (quad, cubic, back, bounce, elastic, hold) and a custom curve you drag. Editable: Edit motion tween changes every generated frame and the frame count; saved in .flint (format 12) |
+| Animation symbols | Working | Convert to Symbol (F8) makes a master with its own frames in the library; double-click an instance to edit it on its own, Done updates every copy; instances loop, play once or hold one frame, from any first frame; Copy to Frames lets them play; Break Apart (Ctrl+B); Tween Instances. Symbols inside symbols are not supported yet |
 
 ## Sprite tools (beyond Fireworks)
 
@@ -153,7 +167,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Consistent alignment | Working | Bottom-centre, centre, top-left |
 | Pivot points | Working | Pivot tool; exported in atlas JSON |
 | Hitboxes | Working | Hitbox tool; exported in atlas JSON |
-| Palette locking / swapping | Partial | Import can convert to the project palette; no palette editor |
+| Palette locking / swapping | Partial | Export colour table locks, edits and loads palettes; import can convert to the project palette; no palette editor for the document itself |
 
 ## Audio (beyond Fireworks)
 
@@ -173,7 +187,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Feature | Status | Notes |
 |---|---|---|
 | Slices, hotspots, buttons, rollovers | Missing | |
-| HTML export | Missing | |
+| HTML export | Partial | A page that plays the animation (Export > HTML page); no slices or rollovers |
 | Batch processing, commands | Missing | |
 | History panel | Working | Click any step to jump back or forward to it |
 
@@ -196,6 +210,6 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Exact pixels everywhere | Working | Every alpha level through every path, checked against PIL |
 | Exports off the UI thread | Working | |
 | Memory indicator | Working | Status bar |
-| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels plus the main toolbar and tool options bar; drag to dock on any side, several columns per side, tab groups (Group with, rename), dividers, fold a panel or a whole side, float, hide (Window menu, F2 etc., F4); built-in layouts (Default, Compact, Painting, Animation) and named saved layouts; last layout restored on start. Not done: several documents open at once in their own windows |
+| Dark theme, docking, saved workspaces | Working | Dark/light theme; 8 panels plus the main toolbar and tool options bar; drag to dock on any side, several columns per side, tab groups (Group with, rename), dividers, fold a panel or a whole side, float, hide (Window menu, F2 etc., F4); built-in layouts (Default, Compact, Painting, Animation) and named saved layouts; last layout restored on start. Several projects open at once as tabs. Not done: projects in separate windows |
 
 Productivity update: Image includes fit/trim/clip and resize quality commands for animation content. Group paths use format 10. See the workspace research/productivity-integration.md for verified Fireworks shortcut provenance and Flint extensions.

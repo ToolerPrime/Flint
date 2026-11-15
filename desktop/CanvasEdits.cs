@@ -59,6 +59,8 @@ public static class CanvasEdits
         foreach(var (cel,mask) in masks) cel.Mask=mask;
         foreach(var apply in markers) apply();
         doc.Guides=guides;doc.Width=bounds.Width;doc.Height=bounds.Height;
+        // The grid stays on the content, like the guides.
+        doc.Grid=doc.Grid with{OffsetX=((doc.Grid.OffsetX+dx)%doc.Grid.SpacingX+doc.Grid.SpacingX)%doc.Grid.SpacingX,OffsetY=((doc.Grid.OffsetY+dy)%doc.Grid.SpacingY+doc.Grid.SpacingY)%doc.Grid.SpacingY};
     }
 
     public static void Clip(Document doc,int? frame)

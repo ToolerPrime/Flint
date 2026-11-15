@@ -55,7 +55,7 @@ public sealed partial class MainForm : ThemedForm
     private Document _doc = new(64, 64);
     private int _cur;                     // current frame
     private int _activeLayer;
-    private readonly UndoStack _undo = new();
+    private UndoStack _undo = new();   // swapped while a symbol is being edited
     private string? _path;
     private bool _dirty;
 
@@ -139,6 +139,7 @@ public sealed partial class MainForm : ThemedForm
 
         DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
                                           || e.Data?.GetDataPresent(LibraryPanel.DragFormat) == true
+                                          || e.Data?.GetDataPresent(LibraryPanel.SymbolDragFormat) == true
             ? DragDropEffects.Copy : DragDropEffects.None;
         DragDrop += (_, e) => HandleDrop(e);
         KeyDown += OnKey;
@@ -227,10 +228,15 @@ public sealed partial class MainForm : ThemedForm
         var frameMenu = new ToolStripMenuItem("F&rame");
         frameMenu.DropDownItems.Add("&Add blank frame", null, (_, _) => AddBlankFrame());
         frameMenu.DropDownItems.Add("D&uplicate frame", null, (_, _) => DuplicateFrame());
-        frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunMotionTween());
+        frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunTweenDialog());
+        var editTween = new ToolStripMenuItem("&Edit motion tween…", null, (_, _) => RunEditTween());
+        var removeTween = new ToolStripMenuItem("Remove t&ween", null, (_, _) => RemoveTween());
+        frameMenu.DropDownItems.Add(editTween);
+        frameMenu.DropDownItems.Add(removeTween);
+        frameMenu.DropDownOpening += (_, _) => editTween.Enabled = removeTween.Enabled = TweenHere != null;
         frameMenu.DropDownItems.Add("De&lete frame", null, (_, _) => DeleteFrame());
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
-        frameMenu.DropDownItems.Add("&Reverse order", null, (_, _) => ReverseOrder());
+        AddFrameHelperMenus(frameMenu);
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
         Add(frameMenu, "&Copy frames", Keys.Control | Keys.Shift | Keys.C, CopyFrames);
         Add(frameMenu, "&Paste frames", Keys.Control | Keys.Shift | Keys.V, PasteFrames);
@@ -251,6 +257,8 @@ public sealed partial class MainForm : ThemedForm
         menu.Items.Add(audioMenu);
         MainMenuStrip = menu;
         BuildEditMenus(menu, edit, layerMenu);
+        AddSymbolMenus(edit);
+        AddPathMenus(edit);
 
         var tools = BuildToolStrip();
         var statusBar = new StatusStrip();
@@ -271,7 +279,12 @@ public sealed partial class MainForm : ThemedForm
         _canvas.MouseWheel += CanvasWheel;
         _canvas.MouseDoubleClick += (_, e) =>
         {
-            if (_tool == Tool.ObjectSelect && PickObject(ToImage(e.X, e.Y))) EditObjectProperties();
+            if (SubDoubleClick(e)) return;
+            if (_tool == Tool.ObjectSelect && PickObject(ToImage(e.X, e.Y)))
+            {
+                if (SelectedInstance is { Symbol: { } s } && !EditingSymbol) EnterSymbolEdit(s.Id);   // Fireworks/Animate: double-click a symbol to edit it
+                else EditObjectProperties();
+            }
         };
 
         // ---------- toolbox ----------
@@ -315,6 +328,7 @@ public sealed partial class MainForm : ThemedForm
     private void SetTool(Tool t)
     {
         if (t != _tool && _xf != null) CommitTransform();
+        if (t != Tool.Pen && _pen != null) FinishPen(false);
         if (t != Tool.Crop) _cropRect = null;
         _tool = t;
         StyleToolButtons();
@@ -325,6 +339,7 @@ public sealed partial class MainForm : ThemedForm
             Tool.Eyedropper or Tool.Marquee or Tool.Pivot or Tool.Hitbox or Tool.EllipseSelect
                 or Tool.Lasso or Tool.Wand or Tool.Crop or Tool.Clone => Cursors.Cross,
             Tool.Move or Tool.ObjectSelect => Cursors.SizeAll,
+            Tool.Pen => Cursors.Cross,
             Tool.Text => Cursors.IBeam,
             _ => Cursors.Default,
         };
@@ -337,6 +352,8 @@ public sealed partial class MainForm : ThemedForm
             Tool.Fill => "Fill: click a region",
             Tool.Line => "Line: drag",
             Tool.Rectangle => "Rectangle: drag; tick filled for solid",
+            Tool.Pen => "Pen: click for corners, drag for smooth curves; click the first point to close, Enter or Esc to finish open. Tick filled for a solid shape",
+            Tool.Subselect => "Subselection: click a path, then drag its points and handles (Alt breaks a smooth point). Double-click the outline to add a point; Delete removes points",
             Tool.Ellipse => "Oval: drag; tick filled for solid",
             Tool.Marquee => "Select: drag a box. Edits stay inside it.",
             Tool.Eyedropper => "Eyedropper: click to take a colour",
@@ -471,10 +488,12 @@ public sealed partial class MainForm : ThemedForm
                 g.DrawLine(grid, o.X, o.Y + y * _zoom, o.X + w, o.Y + y * _zoom);
         }
 
+        PaintGrid(g, o);
         PaintGuides(g, o);
 
         PaintEditOverlay(g, o);
         PaintObjectOutline(g, o);
+        PaintPathOverlay(g, o);
         PaintRulersAndGuides(g, o);
     }
 
@@ -930,6 +949,7 @@ public sealed partial class MainForm : ThemedForm
             return;
         }
         var before = Before();
+        lower.Tweens = new();                       // merged objects no longer match the tween's object
 
         var frames = lower.Shared ? new[] { 0 } : Enumerable.Range(0, _doc.FrameCount).ToArray();
         foreach (int f in frames)
@@ -1036,6 +1056,7 @@ public sealed partial class MainForm : ThemedForm
             var cel = l.Cels.TryGetValue(_cur, out var c) ? c : new Cel();
             l.Cels.Clear();
             l.Cels[0] = cel;
+            l.Tweens = new();                       // one picture for every frame has nothing to tween
         }
         l.Shared = shared;
         PushStructure("shared layer", before);
@@ -1060,6 +1081,7 @@ public sealed partial class MainForm : ThemedForm
 
     private bool ConfirmDiscard(IWin32Window? owner = null)
     {
+        LeaveSymbolEdit();
         if (!_dirty || SuppressPrompts || Program.Headless) return true;
         var r = MessageBox.Show(owner ?? ProjectOwner, $"Save changes to {ProjectName} first?", "Flint",
             MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -1112,7 +1134,7 @@ public sealed partial class MainForm : ThemedForm
         if (_projectWindow == null && !ConfirmDiscard(owner)) return false;
         using var dlg = new OpenFileDialog
         {
-            Filter = "Flint project or Fireworks PNG|*.flint;*.png|All files|*.*", Title = "Open project",
+            Filter = "Flint project, Fireworks PNG or Aseprite file|*.flint;*.png;*.aseprite;*.ase|All files|*.*", Title = "Open project",
         };
         return dlg.ShowDialog(owner) == DialogResult.OK && OpenInProjectTab(dlg.FileName);
     }
@@ -1150,6 +1172,7 @@ public sealed partial class MainForm : ThemedForm
 
     private bool SaveProject(bool forceAsk)
     {
+        LeaveSymbolEdit();
         FinishFloat();
         string? target = _path;
         if (forceAsk || target == null)
@@ -1243,15 +1266,6 @@ public sealed partial class MainForm : ThemedForm
         _doc.SwapFrames(_cur, to);
         _cur = to;
         PushStructure("reorder frames", before);
-    }
-
-    private void ReverseOrder()
-    {
-        var before = Before();
-        for (int i = 0, j = _doc.FrameCount - 1; i < j; i++, j--) _doc.SwapFrames(i, j);
-        _cur = _doc.FrameCount - 1 - _cur;
-        PushStructure("reverse frames", before);
-        Say("order reversed");
     }
 
     private void SetFrameDelay(int ms)
@@ -1413,15 +1427,15 @@ public sealed partial class MainForm : ThemedForm
         using var dlg = new OpenFileDialog
         {
             Multiselect = true,
-            Filter = "Images|*.png;*.gif;*.jpg;*.jpeg;*.bmp|All files|*.*",
-            Title = "Import images",
+            Filter = "Images and videos|*.png;*.gif;*.jpg;*.jpeg;*.bmp;*.mp4;*.webm;*.mov;*.mkv;*.avi;*.m4v|Images|*.png;*.gif;*.jpg;*.jpeg;*.bmp|Videos (need ffmpeg)|*.mp4;*.webm;*.mov;*.mkv;*.avi;*.m4v|All files|*.*",
+            Title = "Import images or video",
         };
         if (dlg.ShowDialog(this) == DialogResult.OK) Import(dlg.FileNames);
     }
 
     private void DropFiles(string[] paths)
     {
-        if (paths.Length == 1 && paths[0].EndsWith(FlintFormat.Extension, StringComparison.OrdinalIgnoreCase))
+        if (paths.Length == 1 && (paths[0].EndsWith(FlintFormat.Extension, StringComparison.OrdinalIgnoreCase) || AsepriteFile.IsAseprite(paths[0])))
         {
             if (_projectWindow != null || ConfirmDiscard()) OpenInProjectTab(paths[0]);
             return;
@@ -1430,6 +1444,23 @@ public sealed partial class MainForm : ThemedForm
         if (audio.Length > 0) _ = ImportAudio(audio, SelectedTrackOrNew(), _timeline.PlayheadMs);
         var images = paths.Where(p => !AudioIO.IsAudio(p)).ToArray();
         if (images.Length > 0) Import(images);
+    }
+
+    /// <summary>Ask for frame rate and range, then read the video's frames behind a progress dialog. Null if cancelled.</summary>
+    private ImportedFile? LoadVideo(string path)
+    {
+        VideoImport.Info? info = null;
+        var (probed, why) = ProgressDialog.Run(this, "Reading video", (p, ct) => { info = VideoImport.Probe(path); return "ok"; });
+        if (!probed || info == null) { if (why == "cancelled") return null; throw new InvalidOperationException(why); }
+        if (VideoImportDialog.Ask(this, path, info) is not { } pick) return null;
+        ImportedFile? file = null;
+        var (ok, msg) = ProgressDialog.Run(this, "Reading video", (p, ct) =>
+        {
+            file = VideoImport.Load(path, pick.fps, pick.start, pick.length, ct, p, info);
+            return "read";
+        });
+        if (!ok) { if (msg == "cancelled") return null; throw new InvalidOperationException(msg); }
+        return file;
     }
 
     /// <summary>Options from the last import dialog, so the next one starts the same way.</summary>
@@ -1442,7 +1473,15 @@ public sealed partial class MainForm : ThemedForm
         var failures = new List<string>();
         foreach (var path in paths)
         {
-            try { files.Add(Importer.Load(path)); }
+            try
+            {
+                if (VideoImport.IsVideo(path))
+                {
+                    var video = LoadVideo(path);
+                    if (video != null) files.Add(video);
+                }
+                else files.Add(Importer.Load(path));
+            }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
         if (files.Count == 0)
@@ -1497,14 +1536,16 @@ public sealed partial class MainForm : ThemedForm
     private int[] Delays() => _doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
 
     private List<LibraryItem>? _libraryShown;
+    private IReadOnlyList<SymbolMaster>? _symbolsShown;
 
     private void RefreshAll()
     {
         if (_xf != null && (_xf.Layer != _activeLayer || _xf.Frame != _cur)) CommitTransform();
-        if (_library != null && !ReferenceEquals(_libraryShown, _doc.Library))
+        if (_library != null && (!ReferenceEquals(_libraryShown, _doc.Library) || !ReferenceEquals(_symbolsShown, RootDocument.Symbols)))
         {
-            _library.Bind(_doc.Library);
+            _library.Bind(_doc.Library, RootDocument.Symbols);
             _libraryShown = _doc.Library;
+            _symbolsShown = RootDocument.Symbols;
         }
         ClampCursors();
         CheckMaskEditTarget();
@@ -1686,7 +1727,7 @@ public sealed partial class MainForm : ThemedForm
             case Keys.Right: StepFrame(1); e.Handled = true; break;
             case Keys.Escape: _selection = null; _canvas.Invalidate(); e.Handled = true; break;
             case Keys.Delete or Keys.Back:
-                if (_tool == Tool.ObjectSelect) { if (SelectedObject != null) DeleteSelectedObject(); else Say("Pick an object first."); }
+                if (_tool is Tool.ObjectSelect or Tool.Subselect) { if (SelectedObject != null) DeleteSelectedObject(); else Say("Pick an object first."); }
                 else if (_tool == Tool.Hitbox) ClearHitboxes(); else ClearSelection();
                 e.Handled = true; break;
         }
@@ -1720,30 +1761,51 @@ public sealed partial class MainForm : ThemedForm
         ("BMP, current frame (32-bit with alpha)|*.bmp", ExportKind.Bmp),
         ("TIFF, current frame (32-bit with alpha)|*.tif", ExportKind.Tiff),
         ("PNG-8 indexed, current frame|*.png", ExportKind.Png8),
+        ("MOV video, H.264, no transparency|*.mov", ExportKind.Mov),
+        ("MOV video, ProRes 4444, keeps transparency (large)|*.mov", ExportKind.MovProRes),
+        ("MKV video, H.264, no transparency|*.mkv", ExportKind.Mkv),
+        ("Animated AVIF, no transparency|*.avif", ExportKind.Avif),
+        ("Aseprite file, layers, frames and tags|*.aseprite", ExportKind.Aseprite),
+        ("HTML page that plays the animation|*.html", ExportKind.Html),
     };
 
     private void ExportAny()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         using var dlg = new SaveFileDialog
         {
             Title = "Export",
-            Filter = string.Join("|", ExportFormats.Select(f => f.filter)),
+            Filter = string.Join("|", ExportFormats.Select(f => f.filter).Concat(VideoPreset.All.Select(p => $"{p.Name}|*.{p.Ext}"))),
             FilterIndex = 1,
             FileName = Path.GetFileNameWithoutExtension(_path ?? "") is { Length: > 0 } n ? n : "animation",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        if (StillExport.IsStill(ExportFormats[dlg.FilterIndex - 1].kind)) { RunStillExport(dlg.FilterIndex - 1, dlg.FileName); return; }
-        RunExport(ExportFormats[dlg.FilterIndex - 1].kind, dlg.FileName);
+        int pick = dlg.FilterIndex - 1;
+        if (pick >= ExportFormats.Length)
+        {
+            var preset = VideoPreset.All[pick - ExportFormats.Length];
+            RunExport(preset.Kind, dlg.FileName, preset);
+            return;
+        }
+        if (StillExport.IsStill(ExportFormats[pick].kind)) { RunStillExport(pick, dlg.FileName); return; }
+        RunExport(ExportFormats[pick].kind, dlg.FileName);
     }
+
+    private static WebmExport.Kind VideoKind(ExportKind k) => k switch
+    {
+        ExportKind.Mp4 => WebmExport.Kind.Mp4, ExportKind.Mov => WebmExport.Kind.Mov, ExportKind.MovProRes => WebmExport.Kind.MovProRes,
+        ExportKind.Mkv => WebmExport.Kind.Mkv, ExportKind.Avif => WebmExport.Kind.Avif, _ => WebmExport.Kind.WebM,
+    };
 
     private void ExportSequence()
     {
+        LeaveSymbolEdit();
         using var dlg = new FolderBrowserDialog { Description = "Write one PNG per frame into…" };
         if (dlg.ShowDialog(this) == DialogResult.OK) RunExport(ExportKind.Sequence, dlg.SelectedPath);
     }
 
-    private void RunExport(ExportKind kind, string path)
+    private void RunExport(ExportKind kind, string path, VideoPreset? preset = null)
     {
         StopPlay();
         if (Exporter.NeedsFfmpeg(kind) && WebmExport.Find() == null)
@@ -1757,6 +1819,13 @@ public sealed partial class MainForm : ThemedForm
             return;
         }
 
+        VideoOptions? video = null;
+        if (Exporter.IsVideo(kind))
+        {
+            video = VideoOptionsDialog.Ask(this, preset, WebmExport.KeepsAlpha(VideoKind(kind)), _bg, _doc.Frames.Sum(f => Math.Max(1, f.Delay)));
+            if (video == null) return;
+        }
+
         var (from, to) = ExportRange();
         var job = new ExportJob
         {
@@ -1764,7 +1833,7 @@ public sealed partial class MainForm : ThemedForm
             GifColours = (int)_colors.Value, Dither = _dither.Checked, Loop = _loop.Checked,
             IncludeAudio = _includeAudio.Checked,
             Quality = kind == ExportKind.WebP ? 0 : (int)_webmQuality.Value,
-            Matte = _bg, SheetCols = (int)_sheetCols.Value,
+            Matte = _bg, SheetCols = (int)_sheetCols.Value, Video = video,
         };
 
         var (ok, message) = ProgressDialog.Run(this, "Exporting", (p, ct) => Exporter.Run(job, p, ct));
@@ -1791,7 +1860,8 @@ public sealed partial class MainForm : ThemedForm
         if (!_dirty || _dragging || _play.Enabled || MouseButtons != MouseButtons.None) return;
         try
         {
-            Recovery.Write(_doc, _path, _recoverySession);
+            // While a symbol is open the project is saved as it was before it (the open edit is not included yet).
+            Recovery.Write(RootDocument, _path, _recoverySession);
             _lastAutosave = DateTime.Now;
             UpdateInfo(null);
         }
@@ -1953,6 +2023,9 @@ public sealed partial class MainForm : ThemedForm
         m.Items.Add(new ToolStripSeparator());
         m.Items.Add("Name frame…", null, (_, _) => RenameFrame(f));
         m.Items.Add("Tag selection…", null, (_, _) => TagSelection());
+        var inc = new ToolStripMenuItem("Include when exporting") { Checked = _doc.Frames[f].Export };
+        inc.Click += (_, _) => SetFramesExported(!_doc.Frames[f].Export);
+        m.Items.Add(inc);
         var tag = _doc.Tags.FirstOrDefault(t => f >= t.Start && f <= t.End);
         if (tag != null)
             m.Items.Add($"Remove tag '{tag.Name}'", null, (_, _) =>
@@ -2351,6 +2424,7 @@ public sealed partial class MainForm : ThemedForm
     internal void TestUndo() => Undo();
     internal void TestRedo() => Redo();
     internal Document TestDocument => _doc;
+    internal void TestImport(string[] paths) => Import(paths);
     internal long TestUndoBytes => _undo.Used;
     internal void TestSetActiveLayer(int i) { _activeLayer = i; RefreshAll(); }
     internal void TestSave(string path) { FlintFormat.Save(_doc, path); _path = path; _dirty = false; }

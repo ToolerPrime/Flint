@@ -22,7 +22,7 @@ public static class ProductivityTest
         form.TestUngroupObjects();
         Check(form.TestSelectedObject!.GroupPath.Count==1, "ungroup removes one nesting level");
         string path=Path.Combine(Path.GetTempPath(),$"flint-group-{Guid.NewGuid():N}.flint");
-        try { FlintFormat.Save(form.TestDocument,path); var loaded=FlintFormat.Load(path); Check(FlintFormat.CurrentVersion==10 && ((RasterObject)loaded.Document!.Layers[0].CelAt(0)!.Objects[0]).GroupPath.Count==1,"format 10 round-trips group membership"); loaded.Document?.Dispose(); }
+        try { FlintFormat.Save(form.TestDocument,path); var loaded=FlintFormat.Load(path); Check(FlintFormat.CurrentVersion>=10 && ((RasterObject)loaded.Document!.Layers[0].CelAt(0)!.Objects[0]).GroupPath.Count==1,"format 10 round-trips group membership"); loaded.Document?.Dispose(); }
         finally { File.Delete(path); }
         form.TestSelectObjects(0,1); using var before=form.TestDocument.RenderFrame(0); form.TestFlattenObjects(); using var after=form.TestDocument.RenderFrame(0);
         Check(ImageOps.GetPixels(before).SequenceEqual(ImageOps.GetPixels(after)) && form.TestDocument.Layers[0].CelAt(0)!.Objects.Count==1,"flatten selection preserves appearance");
@@ -78,7 +78,7 @@ public static class ProductivityTest
 
         var letters=new (Keys key,Tool tool)[]{(Keys.V,Tool.ObjectSelect),(Keys.V,Tool.Move),(Keys.Q,Tool.Transform),(Keys.L,Tool.Lasso),(Keys.N,Tool.Line),
             (Keys.U,Tool.Rectangle),(Keys.U,Tool.Ellipse),(Keys.M,Tool.Marquee),(Keys.M,Tool.EllipseSelect),(Keys.G,Tool.Fill),(Keys.G,Tool.Gradient),
-            (Keys.B,Tool.Brush),(Keys.Y,Tool.Pencil),(Keys.E,Tool.Eraser),(Keys.S,Tool.Clone),(Keys.W,Tool.Wand),(Keys.I,Tool.Eyedropper),(Keys.H,Tool.Pan),(Keys.C,Tool.Crop),(Keys.T,Tool.Text),(Keys.A,Tool.ObjectSelect)};
+            (Keys.B,Tool.Brush),(Keys.Y,Tool.Pencil),(Keys.E,Tool.Eraser),(Keys.S,Tool.Clone),(Keys.W,Tool.Wand),(Keys.I,Tool.Eyedropper),(Keys.H,Tool.Pan),(Keys.C,Tool.Crop),(Keys.T,Tool.Text),(Keys.A,Tool.Subselect),(Keys.P,Tool.Pen)};
         form.TestToolKey(Keys.E); bool all=true; foreach(var (key,tool) in letters){form.TestToolKey(key); if(form.TestTool!=tool){all=false;Console.WriteLine($"         {key} gave {form.TestTool}, wanted {tool}");}}
         Check(all,"Fireworks tool letters pick the right tools, and a repeated letter cycles its group");
         form.TestSetColours(Color.Red,Color.Blue); form.TestToolKey(Keys.X);

@@ -87,6 +87,16 @@ public sealed class RasterObject : DocObject
     public PrimitiveSpec? Primitive { get; init; }
     public TextSource? TextSource { get; init; }
     public IReadOnlyList<string> GroupPath { get; init; } = Array.Empty<string>();
+    /// <summary>Set on a symbol instance (see Symbols.cs); dropped by With(), so destructive edits make plain pixels.</summary>
+    public SymbolRef? Symbol { get; init; }
+
+    /// <summary>The same object with a different symbol link (null = a plain placed picture).</summary>
+    public RasterObject WithSymbol(SymbolRef? s) => new(Pixels)
+    {
+        Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
+        Original = Original, Matrix = Matrix, Mode = Mode, Vector = Vector, Effects = Effects,
+        Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, _up8 = _up8, Symbol = s,
+    };
 
     /// <summary>
     /// Live effects, applied in order after the object is rendered from Original or Vector through
@@ -127,7 +137,7 @@ public sealed class RasterObject : DocObject
             return new RasterObject(Pixels)
             {
                 Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Original = src, Matrix = next, Mode = Mode, _up8 = _up8, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Original = src, Matrix = next, Mode = Mode, _up8 = _up8, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
             };
         var srcPx = ImageOps.GetPixels(src);
         byte[]? up = Original != null ? _up8 : null;
@@ -137,7 +147,7 @@ public sealed class RasterObject : DocObject
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Original = src, Matrix = next, Mode = mode, _up8 = up, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Original = src, Matrix = next, Mode = mode, _up8 = up, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -148,13 +158,13 @@ public sealed class RasterObject : DocObject
             return new RasterObject(Pixels)
             {
                 Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Vector = Vector, Matrix = next, Mode = Mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Vector = Vector, Matrix = next, Mode = Mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
             };
         var r = WithEffects(Tracer.Render(Vector!, next, mode == Resample.Smooth));
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Vector = Vector, Matrix = next, Mode = mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Vector = Vector, Matrix = next, Mode = mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -168,7 +178,7 @@ public sealed class RasterObject : DocObject
     {
         Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
         Original = Original == null ? null : ImageOps.Clone(Original), Matrix = Matrix, Mode = Mode, Vector = Vector,
-        Effects = Effects == null ? null : new List<ObjectEffect>(Effects), Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+        Effects = Effects == null ? null : new List<ObjectEffect>(Effects), Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
     };
 
     /// <summary>
@@ -207,7 +217,7 @@ public sealed class RasterObject : DocObject
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Original = orig, Vector = Vector, Matrix = m, Mode = Mode, Effects = fx, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Original = orig, Vector = Vector, Matrix = m, Mode = Mode, Effects = fx, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -215,7 +225,7 @@ public sealed class RasterObject : DocObject
     {
         Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
         Original = Original, Matrix = Matrix, Mode = Mode, Vector = Vector, Effects = Effects,
-        Primitive = Primitive, TextSource = TextSource, GroupPath = ObjectGroups.Validate(path), _up8 = _up8,
+        Primitive = Primitive, TextSource = TextSource, GroupPath = ObjectGroups.Validate(path), _up8 = _up8, Symbol = Symbol,
     };
 
     /// <summary>The same object shifted by whole pixels; keeps its original and matrix.</summary>
@@ -303,6 +313,17 @@ public sealed class Layer
 
     /// <summary>Sparse: frame index to cel. A missing key means an empty frame.</summary>
     public readonly Dictionary<int, Cel> Cels = new();
+    /// <summary>Editable tweens on this layer. Spans are replaced, never changed in place.</summary>
+    public List<TweenSpan> Tweens = new();
+
+    /// <summary>Tweens follow their frames; a span whose frames no longer sit together (a frame added or removed inside) becomes plain frames.</summary>
+    public void RemapTweens(Func<int, int?> map)
+    {
+        if (Tweens.Count == 0) return;
+        // Every frame of the span must land in order right after the new start.
+        Tweens = Tweens.Where(s => map(s.Start) is int a && Enumerable.Range(1, s.Frames).All(i => map(s.Start + i) == a + i))
+            .Select(s => s with { Start = map(s.Start)!.Value }).ToList();
+    }
 
     public Cel? CelAt(int frame)
     {
@@ -340,6 +361,7 @@ public sealed class Layer
 
     private Layer CopyProps() => new()
     {
+        Tweens = new List<TweenSpan>(Tweens),
         Name = Name, Visible = Visible, Locked = Locked,
         Shared = Shared, Opacity = Opacity, Blend = Blend, MaskEnabled = MaskEnabled, MaskLinked = MaskLinked,
     };
@@ -348,6 +370,7 @@ public sealed class Layer
     public void RemapFrames(Func<int, int?> map)
     {
         if (Shared) return;
+        RemapTweens(map);
         var next = new Dictionary<int, Cel>();
         foreach (var (k, v) in Cels)
         {
@@ -374,10 +397,12 @@ public sealed class FrameSpec
     /// <summary>Origin point for game engines, in canvas pixels. Null = none set.</summary>
     public Point? Pivot;
     public readonly List<Hitbox> Hitboxes = new();
+    /// <summary>Fireworks' "Include when exporting". Off = every exporter skips this frame.</summary>
+    public bool Export = true;
 
     public FrameSpec Clone()
     {
-        var f = new FrameSpec { Delay = Delay, Name = Name, Pivot = Pivot };
+        var f = new FrameSpec { Delay = Delay, Name = Name, Pivot = Pivot, Export = Export };
         foreach (var h in Hitboxes) f.Hitboxes.Add(h.Clone());
         return f;
     }
@@ -409,8 +434,16 @@ public sealed class Document
     public AudioProject Audio = new();
     /// <summary>Ruler guides. Always replaced, never edited in place, so undo closures can hold the old list.</summary>
     public IReadOnlyList<Guide> Guides = Array.Empty<Guide>();
+    /// <summary>Symbol masters. The list is replaced, never edited; masters are immutable. Inside undo.</summary>
+    public IReadOnlyList<SymbolMaster> Symbols = Array.Empty<SymbolMaster>();
+    /// <summary>View > Grid settings, saved with the document. Replaced, never changed in place.</summary>
+    public GridSpec Grid = GridSpec.Default;
 
     public int FrameCount => Frames.Count;
+
+    /// <summary>Frames from..to that are exported. A single-frame range always counts (exporting "the current frame").</summary>
+    public IEnumerable<int> ExportedFrames(int from, int to) =>
+        Enumerable.Range(from, Math.Max(0, to - from + 1)).Where(i => from == to || Frames[i].Export);
     public int LayerCount => Layers.Count;
 
     public Document(int width, int height)
@@ -473,6 +506,7 @@ public sealed class Document
         }
         var perm = Enumerable.Range(0, Frames.Count).ToArray();
         perm[a] = b; perm[b] = a;
+        foreach (var l in Layers) l.RemapTweens(k => perm[k]);
         RemapTags(perm);
     }
 
@@ -491,7 +525,20 @@ public sealed class Document
         order.Insert(to, from);
         var perm = new int[n];
         for (int i = 0; i < n; i++) perm[order[i]] = i;
+        Permute(perm);
+    }
 
+    /// <summary>Reverse frames from..to (inclusive) in one reordering, so tags keep their own frames.</summary>
+    public void ReverseFrames(int from, int to)
+    {
+        var perm = Enumerable.Range(0, Frames.Count).Select(i => i >= from && i <= to ? from + to - i : i).ToArray();
+        Permute(perm);
+    }
+
+    /// <summary>Reorder frames: perm[old] = new index. Cels and tags follow.</summary>
+    public void Permute(int[] perm)
+    {
+        int n = Frames.Count;
         var frames = Frames.ToArray();
         for (int i = 0; i < n; i++) Frames[perm[i]] = frames[i];
 
@@ -501,6 +548,7 @@ public sealed class Document
             var old = l.Cels.ToList();
             l.Cels.Clear();
             foreach (var (k, v) in old) l.Cels[perm[k]] = v;
+            l.RemapTweens(k => perm[k]);
         }
 
         RemapTags(perm);
@@ -582,6 +630,7 @@ public sealed class Document
         foreach (var t in Tags) d.Tags.Add(t.Clone());
         d.Audio = Audio.Clone();
         d.Library = Library;
+        d.Symbols = Symbols;
         return d;
     }
 
@@ -600,6 +649,7 @@ public sealed class Document
                         if (r.Original != null) set.Add(r.Original);
                     }
             }
+        foreach (var m in Symbols) set.UnionWith(m.Content.RasterBitmaps());
         return set;
     }
 
@@ -611,6 +661,7 @@ public sealed class Document
             foreach (var c in l.Cels.Values)
                 foreach (var o in c.Objects)
                     if (o is RasterObject { Vector: { } v }) set.Add(v);
+        foreach (var m in Symbols) set.UnionWith(m.Content.VectorArts());
         return set;
     }
 
@@ -711,6 +762,7 @@ public sealed class Document
         foreach (var t in Tags) d.Tags.Add(t.Clone());
         d.Audio = Audio.Clone();
         d.Library = Library.Select(i => new LibraryItem(i.Name, ImageOps.Clone(i.Pixels), i.Source)).ToList();
+        d.Symbols = Symbols;
         return d;
     }
 
@@ -725,6 +777,7 @@ public sealed class Document
                 foreach (var o in c.Objects)
                     if (o is RasterObject r) n += (long)r.Width * r.Height * 4;
             }
+        foreach (var m in Symbols) n += m.Content.ApproximateBytes();
         return n;
     }
 
@@ -735,7 +788,7 @@ public sealed class Document
             {
                 c.Mask?.Pixels.Dispose();
                 foreach (var o in c.Objects)
-                    if (o is RasterObject r) r.Pixels.Dispose();
+                    if (o is RasterObject { Symbol: null } r) r.Pixels.Dispose();   // instances may share cached frames
             }
     }
 }

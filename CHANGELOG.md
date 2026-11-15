@@ -1,5 +1,69 @@
 # Changelog
 
+## Unreleased — exact path combining
+
+- Combine path (Union, Intersect, Punch, Crop), Inset path and Expand stroke now compute exactly with the Clipper2 library, so curved shapes keep their exact outline and come back with fewer points, and tiny details are kept. Large shapes are faster and use far less memory. Inset path now keeps corners sharp (inward corners and the corners of holes used to come out rounded).
+
+## Unreleased — pen tool and path commands
+
+- Pen tool (P): click for corner points, drag for smooth curves, click the first point to close the shape, Enter or Esc to finish an open path, Backspace to take back a point. Tick filled for a solid shape; anti-alias for smooth edges.
+- Subselection tool (A): drag a path's points and handles (a smooth point stays smooth; Alt breaks it), drag a box to select points, arrow keys nudge, Delete removes points, double-click the outline to add one. Rectangles and ovals become paths when you edit their points.
+- Edit > Combine path: Union, Intersect, Punch and Crop. Edit > Alter path: Simplify, Expand stroke and Inset path.
+- Double-click a path with the Object tool to change its fill, stroke and stroke width.
+- Saved in the project (format 15; older projects still open). The curve fitting is translated from VectorCraft (see CREDITS_LICENSES.md).
+
+## Unreleased — symbols
+
+- Edit > Symbol > Convert to symbol (F8): the selected objects become a symbol, kept in the library under Symbols, and are replaced by one instance. A symbol has its own frames.
+- Double-click an instance (Object tool), or Edit symbol in the library, to open the symbol on its own. Press Done and every copy updates, as one undo step.
+- Place symbols from the library (double-click or drag). Use Frame > Copy to frames to let an animated symbol play over frames.
+- Instance options: loop, play once or show a single frame, starting from any frame of the symbol.
+- Break apart (Ctrl+B) turns an instance into ordinary objects again. Tween instances makes an editable tween from one instance to another (move, scale, rotate, fade).
+- Saved in the project (format 14; older projects still open). Exports flatten symbols automatically.
+
+## Unreleased — grid with snapping
+
+- View > Grid: show the grid (Ctrl+'), snap to it (Ctrl+Shift+'), and Edit grid to set the spacing across and down, an offset and the colour.
+- The marquee, ellipse select, crop, line, rectangle, ellipse, gradient and hitbox tools snap to grid lines, and Move pulls the box's nearer edge onto the grid. A guide close by still wins.
+- The grid is saved with each project (format 13; older projects still open).
+
+## Unreleased — tweens with easing
+
+- The motion tween can now also scale, rotate (clockwise or counter-clockwise) and fade the object, and move it along a curved path at an even speed.
+- Eases: linear, ease in / out / in-out (quad and cubic), back, bounce, elastic, hold, and a custom curve you shape by dragging two handles.
+- Tweens stay editable: on any frame of a tween, Frame > Edit motion tween changes it and every frame follows, even a new number of frames. Move the object on the first frame and edit the tween to make the rest follow. Remove tween keeps the frames as they are. Saved in the project (format 12; older projects still open).
+- The custom-curve maths and even-speed path are translated from EffectCraft (see CREDITS_LICENSES.md).
+
+## Unreleased — frame helpers from Fireworks
+
+- Frame > Animate selection: turn the selected object into an animation over a number of frames: move it a distance in a direction, scale it, fade it, and spin it clockwise or counter-clockwise.
+- Frame > Distribute to frames: each selected object goes to its own frame, in stacking order, adding frames if needed.
+- Frame > Copy to frames: copy the selected objects to all frames, the previous or next frame, or a range.
+- Frame > Reverse frames: reverse all frames or just a range. (Replaces Reverse order.)
+- Frame > Add frames: add any number of frames before or after the current one or at the end, empty or as copies.
+- Include when exporting: untick it for a frame (Frame menu or right-click a frame) and every animation export (GIF, APNG, WebP, video, sprite sheet, atlas, Aseprite, HTML) leaves that frame out, including its part of the sound in videos. Left-out frames are crossed out in the timeline. Saved in the project (format 11; older projects still open).
+
+## Unreleased — video host formats, Aseprite files, HTML page, video import
+
+- New export formats: MOV (H.264), MOV ProRes 4444 (keeps transparency, for editors and Vimeo), MKV (H.264) and animated AVIF.
+- Video host presets in Export: YouTube 1080p, YouTube 4K, YouTube Shorts / TikTok / Instagram Reels (1080x1920), X / Twitter (1280x720), Discord (kept under 10 MB) and Vimeo (ProRes). Pixel art is scaled up by a whole number with sharp pixels, then bars fill the rest in a colour you choose, so the site does not blur it.
+- Video options before export: bar colour (or clear bars for formats with transparency), play the animation N times, or repeat it until the video is at least so many seconds long. Sound repeats with it.
+- Aseprite files: File > Open reads .aseprite and .ase (layers, frames, timing, tags); Export writes them.
+- HTML page export: one .html file that plays the animation in any browser, with exact timing. Click to pause.
+- Import video: MP4, WebM, MOV, MKV and AVI come in as frames, at the frame rate and time range you choose. WebM transparency is kept. Needs ffmpeg.
+
+## Unreleased — smaller, better GIFs
+
+- GIFs are smaller: after the first frame, each frame stores only the box that changed, and pixels that did not change inside it are reused from the frame before. Checked frame by frame against Pillow's decode and Flint's own import. This is on for every GIF export.
+- A pixel that exactly matches a palette colour now always gets that colour (before, a shortcut could give it a near neighbour), so some GIFs and PNG-8s come out a little more accurate than before.
+- Palette types in the export preview: Adaptive (as before), Exact, Web 216, Web Adaptive (snaps near colours to web-safe), Uniform, Greyscale, Black and white, and Custom (a palette file you load).
+- Dithering: none, diffusion (Floyd-Steinberg, as before), pattern (ordered), or noise, each with a strength from 0 to 100%.
+- Colour table window: see every colour; lock one so it stays, edit one, or make one transparent; remove unused colours; load or save .act, .gpl and JASC .pal palettes.
+- Lossy GIF slider (0-200): allows near colours where that makes the file smaller.
+- Optimize to size: type a size in KB and Flint finds the most colours that fit, using the least lossy setting that allows them.
+- Export presets: save the settings of a pane under a name, pick them again later, or delete them.
+- Palette types, the pattern and noise dithers and their strength rule are translated from PhotoCraft (see CREDITS_LICENSES.md).
+
 ## Unreleased — bracket keys, local helpers can run tests
 
 - [ and ] make the brush smaller or bigger (about 10% a step for the Brush, 1 pixel for the pencil and shapes), as in Photoshop. Written by the local Ollama model as a test of working without Claude; reviewed and one edge case fixed.

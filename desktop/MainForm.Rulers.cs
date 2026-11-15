@@ -36,6 +36,82 @@ public sealed partial class MainForm
         g.DropDownItems.Add(new ToolStripSeparator());
         g.DropDownItems.Add("&Clear guides", null, (_, _) => ClearGuides());
         view.DropDownItems.Add(g);
+        var grid = new ToolStripMenuItem("G&rid");
+        var show = new ToolStripMenuItem("&Show grid", null, (_, _) => SetGrid(_doc.Grid with { Show = !_doc.Grid.Show })) { ShortcutKeys = Keys.Control | Keys.Oem7 };
+        var snap = new ToolStripMenuItem("S&nap to grid", null, (_, _) => SetGrid(_doc.Grid with { Snap = !_doc.Grid.Snap })) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.Oem7 };
+        grid.DropDownItems.Add(show);
+        grid.DropDownItems.Add(snap);
+        grid.DropDownItems.Add("&Edit grid…", null, (_, _) => EditGrid());
+        grid.DropDownOpening += (_, _) => { show.Checked = _doc.Grid.Show; snap.Checked = _doc.Grid.Snap; };
+        view.DropDownItems.Add(grid);
+    }
+
+    /// <summary>Grid settings belong to the document (saved with it) but are not undo steps, like Fireworks.</summary>
+    private void SetGrid(GridSpec g)
+    {
+        if (g == _doc.Grid) return;
+        _doc.Grid = g;
+        Touch();
+        _canvas.Invalidate();
+        Say(g.Snap ? $"grid {g.SpacingX}×{g.SpacingY}, snapping" : g.Show ? $"grid {g.SpacingX}×{g.SpacingY}" : "grid hidden");
+    }
+
+    private void EditGrid()
+    {
+        var g = _doc.Grid;
+        using var f = new ThemedForm
+        {
+            Text = "Edit grid", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent,
+            MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false,
+        };
+        int y = 14;
+        NumericUpDown N(string label, int value, int min, int max)
+        {
+            f.Controls.Add(new Label { Text = label, Left = 16, Top = y + 3, Width = 130 });
+            var n = new NumericUpDown { Left = 150, Top = y, Width = 80, Minimum = min, Maximum = max, Value = Math.Clamp(value, min, max), AccessibleName = label, TextAlign = HorizontalAlignment.Right };
+            f.Controls.Add(n);
+            y += 32;
+            return n;
+        }
+        var sx = N("Spacing across (px)", g.SpacingX, 1, 4096);
+        var sy = N("Spacing down (px)", g.SpacingY, 1, 4096);
+        var ox = N("Offset across (px)", g.OffsetX, -4096, 4096);
+        var oy = N("Offset down (px)", g.OffsetY, -4096, 4096);
+        f.Controls.Add(new Label { Text = "Colour", Left = 16, Top = y + 3, Width = 130 });
+        var colour = new Button { Left = 150, Top = y, Width = 80, BackColor = Color.FromArgb(255, g.Colour), AccessibleName = "Grid colour" };
+        colour.Click += (_, _) => { if (ColourPickerDialog.Pick(f, colour.BackColor, "Grid colour") is { } c) colour.BackColor = c; };
+        f.Controls.Add(colour);
+        y += 36;
+        var showBox = new CheckBox { Text = "Show grid", Left = 16, Top = y, AutoSize = true, Checked = g.Show };
+        var snapBox = new CheckBox { Text = "Snap to grid", Left = 130, Top = y, AutoSize = true, Checked = g.Snap };
+        f.Controls.Add(showBox); f.Controls.Add(snapBox);
+        y += 34;
+        var ok = new Button { Text = "OK", Left = 60, Top = y, Width = 80, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Cancel", Left = 150, Top = y, Width = 80, DialogResult = DialogResult.Cancel };
+        f.Controls.Add(ok); f.Controls.Add(cancel);
+        f.AcceptButton = ok; f.CancelButton = cancel;
+        f.ClientSize = new Size(250, y + 44);
+        if (f.ShowDialog(this) != DialogResult.OK) return;
+        SetGrid(new GridSpec(showBox.Checked, snapBox.Checked, (int)sx.Value, (int)sy.Value, (int)ox.Value, (int)oy.Value,
+            Color.FromArgb(g.Colour.A, colour.BackColor).ToArgb()));
+    }
+
+    /// <summary>Grid lines over the canvas; skipped when they would be closer than 4 screen pixels.</summary>
+    private void PaintGrid(Graphics g, Point o)
+    {
+        var grid = _doc.Grid;
+        if (!grid.Show) return;
+        int sx = Math.Max(1, grid.SpacingX), sy = Math.Max(1, grid.SpacingY);
+        if (sx * _zoom < 4 || sy * _zoom < 4) return;
+        using var pen = new Pen(grid.Colour);
+        // Only the lines inside the area being repainted.
+        var clip = g.VisibleClipBounds;
+        int x0 = Math.Max(0, (int)Math.Floor((clip.Left - o.X) / _zoom)), x1 = Math.Min(DocW, (int)Math.Ceiling((clip.Right - o.X) / _zoom));
+        int y0 = Math.Max(0, (int)Math.Floor((clip.Top - o.Y) / _zoom)), y1 = Math.Min(DocH, (int)Math.Ceiling((clip.Bottom - o.Y) / _zoom));
+        int top = o.Y + y0 * _zoom, bottom = o.Y + y1 * _zoom, left = o.X + x0 * _zoom, right = o.X + x1 * _zoom;
+        int First(int from, int off, int step) => from + ((off - from) % step + step) % step;
+        for (int x = First(x0, grid.OffsetX, sx); x <= x1; x += sx) g.DrawLine(pen, o.X + x * _zoom, top, o.X + x * _zoom, bottom);
+        for (int y = First(y0, grid.OffsetY, sy); y <= y1; y += sy) g.DrawLine(pen, left, o.Y + y * _zoom, right, o.Y + y * _zoom);
     }
 
     private void SyncGuideMenu()
@@ -232,15 +308,35 @@ public sealed partial class MainForm
     private IEnumerable<Guide> ActiveGuides => _guidesShown ? _doc.Guides : Array.Empty<Guide>();
 
     /// <summary>ToImage, pulled onto a guide, the canvas edge or its centre when within ~6 screen pixels.</summary>
+    // The line the drag started on, per axis, when the start snapped; box tools need it to size reverse drags.
+    private double? _snapStartX, _snapStartY;
+
     private Point ToImageSnapped(MouseEventArgs e)
     {
         var p = ToImage(e.X, e.Y);
-        if (!_guidesSnap || !SnapsToGuides(_tool)) return p;
+        if (!_dragging) _snapStartX = _snapStartY = null;
+        var grid = _doc.Grid.Snap ? _doc.Grid : null;
+        if ((!_guidesSnap && grid == null) || !SnapsToGuides(_tool)) return p;
         var o = CanvasOrigin();
-        if (GuideSet.SnapAxis((e.X - o.X) / (double)_zoom, true, ActiveGuides, DocW, _zoom) is { } sx)
-            p.X = GuideSet.EdgeToPixel(sx, _dragging ? _dragStart.X : null);
-        if (GuideSet.SnapAxis((e.Y - o.Y) / (double)_zoom, false, ActiveGuides, DocH, _zoom) is { } sy)
-            p.Y = GuideSet.EdgeToPixel(sy, _dragging ? _dragStart.Y : null);
+        var guides = _guidesSnap ? ActiveGuides : null;
+        bool point = _tool is Tool.Line or Tool.Gradient;      // these end on the snapped point itself, not on a box edge
+        int Axis(double edge, bool vertical)
+        {
+            int size = vertical ? DocW : DocH;
+            if (point) return Math.Clamp((int)Math.Round(edge), 0, size - 1);
+            ref double? start = ref vertical ? ref _snapStartX : ref _snapStartY;
+            if (!_dragging) { start = edge; return GuideSet.EdgeToPixel(edge, null); }
+            // A box covers the pixels between its two lines: dragging back past a snapped start,
+            // the start's own pixel is outside, so the start moves to the pixel before its line.
+            if (start is { } s0)
+            {
+                int startPixel = edge < s0 ? (int)Math.Ceiling(s0) - 1 : GuideSet.EdgeToPixel(s0, null);
+                if (vertical) _dragStart.X = startPixel; else _dragStart.Y = startPixel;
+            }
+            return GuideSet.EdgeToPixel(edge, vertical ? _dragStart.X : _dragStart.Y);
+        }
+        if (GuideSet.SnapAxis((e.X - o.X) / (double)_zoom, true, guides, DocW, _zoom, grid) is { } sx) p.X = Axis(sx, true);
+        if (GuideSet.SnapAxis((e.Y - o.Y) / (double)_zoom, false, guides, DocH, _zoom, grid) is { } sy) p.Y = Axis(sy, false);
         return p;
     }
 
@@ -248,15 +344,22 @@ public sealed partial class MainForm
     private void SnapMove(XformSession s)
     {
         s.GuideAligned = false;
-        if (!_guidesSnap) return;
+        var grid = _doc.Grid.Snap ? _doc.Grid : null;
+        if (!_guidesSnap && grid == null) return;
         var c = s.Corners();
         double l = c.Min(p => p.X), r = c.Max(p => p.X), t = c.Min(p => p.Y), b = c.Max(p => p.Y);
         double Best(bool vertical, double a, double mid, double z, int size)
         {
             double best = 0, bestAbs = double.MaxValue;
-            foreach (var probe in new[] { a, mid, z })
-                if (GuideSet.SnapAxis(probe, vertical, ActiveGuides, size, _zoom) is { } hit && Math.Abs(hit - probe) < bestAbs)
-                { best = hit - probe; bestAbs = Math.Abs(best); }
+            if (_guidesSnap)
+                foreach (var probe in new[] { a, mid, z })
+                    if (GuideSet.SnapAxis(probe, vertical, ActiveGuides, size, _zoom) is { } hit && Math.Abs(hit - probe) < bestAbs)
+                    { best = hit - probe; bestAbs = Math.Abs(best); }
+            // No guide close by: the box's nearer edge goes onto the grid.
+            if (bestAbs == double.MaxValue && grid != null)
+                foreach (var probe in new[] { a, z })
+                    if (Math.Abs(grid.Nearest(probe, vertical) - probe) < bestAbs)
+                    { best = grid.Nearest(probe, vertical) - probe; bestAbs = Math.Abs(best); }
             return best; // A guide (including a half-pixel canvas centre) takes priority over pixel snap.
         }
         s.Tx += Best(true, l, (l + r) / 2, r, DocW);
@@ -283,4 +386,7 @@ public sealed partial class MainForm
         CanvasUp(null, At(screenPath[^1]));
     }
     internal int TestUndoCount => _undo.DoneCount;
+    internal void TestSetGrid(GridSpec g) => SetGrid(g);
+    internal Point TestCanvasOrigin => CanvasOrigin();
+    internal void TestPaintCanvas(Bitmap bmp) { using var gr = Graphics.FromImage(bmp); PaintCanvas(null, new PaintEventArgs(gr, new Rectangle(0, 0, bmp.Width, bmp.Height))); }
 }

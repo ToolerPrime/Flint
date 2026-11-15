@@ -227,6 +227,21 @@ public static class ImageOps
     /// Tightest box holding an opaque pixel in ANY of the frames, so trimming
     /// an animation keeps it registered against itself. Empty if all clear.
     /// </summary>
+    public static Rectangle OpaqueBounds(byte[] bgra, int w, int h)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                if (bgra[(y * w + x) * 4 + 3] == 0) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        return maxX < 0 ? Rectangle.Empty : Rectangle.FromLTRB(minX, minY, maxX + 1, maxY + 1);
+    }
+
     public static Rectangle ContentBounds(IEnumerable<Bitmap> frames)
     {
         int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
@@ -253,7 +268,7 @@ public static class ImageOps
     /* Floyd-Steinberg, serpentine. Off by default: on pixel art the noise
      * reads as dirt rather than as extra colour. */
     public static byte[] Dither(byte[] bgra, int w, int h, Palette pal,
-                                Quantizer.Indexer ix, int offset)
+                                Quantizer.Indexer ix, int offset, float amount = 1f)
     {
         var err = new float[w * h * 3];
         var outIdx = new byte[w * h];
@@ -270,7 +285,7 @@ public static class ImageOps
                 float b = Math.Clamp(bgra[o + 0] + err[e + 2], 0, 255);
                 int idx = ix.Nearest((byte)r, (byte)g, (byte)b);
                 outIdx[p] = (byte)(idx + offset);
-                float dr = r - pal.R[idx], dg = g - pal.G[idx], db = b - pal.B[idx];
+                float dr = (r - pal.R[idx]) * amount, dg = (g - pal.G[idx]) * amount, db = (b - pal.B[idx]) * amount;
                 int fwd = leftToRight ? 1 : -1;
                 void Spread(int nx, int ny, float f)
                 {

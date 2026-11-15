@@ -790,7 +790,7 @@ public static class FireworksPng
     }
 
     /// <summary>Cubic Bézier into <paramref name="o"/> (start point already there), until within about 0.25 px.</summary>
-    private static void Flatten(VPt p0, VPt p1, VPt p2, VPt p3, List<VPt> o, int depth)
+    internal static void Flatten(VPt p0, VPt p1, VPt p2, VPt p3, List<VPt> o, int depth, double tol = 0.3)
     {
         // Distance of the two control points from the chord bounds the curve's error (error <= 3/4 of it).
         double dx = p3.X - p0.X, dy = p3.Y - p0.Y, len = Math.Sqrt(dx * dx + dy * dy);
@@ -805,19 +805,19 @@ public static class FireworksPng
             d1 = Math.Abs((p1.X - p0.X) * dy - (p1.Y - p0.Y) * dx) / len;
             d2 = Math.Abs((p2.X - p0.X) * dy - (p2.Y - p0.Y) * dx) / len;
         }
-        if (depth >= 12 || Math.Max(d1, d2) <= 0.3) { o.Add(p3); return; }
+        if (depth >= 12 || Math.Max(d1, d2) <= tol) { o.Add(p3); return; }
         VPt Mid(VPt a, VPt b) => new((a.X + b.X) / 2, (a.Y + b.Y) / 2);
         var p01 = Mid(p0, p1); var p12 = Mid(p1, p2); var p23 = Mid(p2, p3);
         var a2 = Mid(p01, p12); var b2 = Mid(p12, p23); var mid = Mid(a2, b2);
-        Flatten(p0, p01, a2, mid, o, depth + 1);
-        Flatten(mid, b2, p23, p3, o, depth + 1);
+        Flatten(p0, p01, a2, mid, o, depth + 1, tol);
+        Flatten(mid, b2, p23, p3, o, depth + 1, tol);
     }
 
     /// <summary>
     /// A stroke as many small shapes: one quad per segment plus a disc at each
     /// real corner. Shapes fill even-odd on their own, so separate shapes never cancel where they overlap.
     /// </summary>
-    private static void Stroke(List<VPt> pts, bool closed, double width, uint col, List<VShape> o)
+    internal static void Stroke(List<VPt> pts, bool closed, double width, uint col, List<VShape> o)
     {
         double hw = width / 2;
         int n = pts.Count;
