@@ -224,6 +224,11 @@ public sealed partial class MainForm
             Say("added the selection to the library");
         };
         _library.Changed += () => { Touch(); };
+        _library.SymbolPlaceRequested += (id, screen) =>
+            PlaceSymbol(id, screen is { } s ? ToImage(_canvas.PointToClient(s).X, _canvas.PointToClient(s).Y) : null);
+        _library.SymbolEditRequested += id => EnterSymbolEdit(id);
+        _library.SymbolRenameRequested += RenameSymbol;
+        _library.SymbolDeleteRequested += id => DeleteSymbol(id);
         page.Controls.Add(_library);
         return page;
     }
@@ -1046,7 +1051,7 @@ public sealed partial class MainForm
             if (it.Pixels.Width == bmp.Width && it.Pixels.Height == bmp.Height && ImageOps.GetPixels(it.Pixels).SequenceEqual(px))
                 return;   // already there
         _doc.Library.Add(new LibraryItem(name, ImageOps.Clone(bmp), source));
-        _library.Bind(_doc.Library);
+        _library.Bind(_doc.Library, RootDocument.Symbols);
     }
 
     /// <summary>
@@ -1062,6 +1067,11 @@ public sealed partial class MainForm
         {
             if (overCanvas && li >= 0 && li < _doc.Library.Count)
                 PlaceImage(_doc.Library[li].Pixels, _doc.Library[li].Name, ToImage(client.X, client.Y), null, false);
+            return;
+        }
+        if (e.Data?.GetData(LibraryPanel.SymbolDragFormat) is string sid)
+        {
+            if (overCanvas) PlaceSymbol(sid, ToImage(client.X, client.Y));
             return;
         }
         if (e.Data?.GetData(DataFormats.FileDrop) is not string[] files) return;

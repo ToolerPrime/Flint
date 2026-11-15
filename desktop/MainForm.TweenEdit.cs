@@ -56,7 +56,7 @@ public sealed partial class MainForm
             int at = start + k;
             _doc.InsertFrame(at, _doc.Frames[start + old].Clone());
             foreach (var l in _doc.Layers)
-                if (!l.Shared && l.Cels.TryGetValue(start + old, out var last)) l.Cels[at] = last.Clone();
+                if (!l.Shared && l.Cels.TryGetValue(start + old, out var last)) { l.Cels[at] = last.Clone(); SymbolOps.AdvanceCel(_doc, l.Cels[at], k - old); }
         }
         for (int k = old; k > frames; k--) _doc.RemoveFrame(start + k);
         spec = spec.Clone();
@@ -74,7 +74,7 @@ public sealed partial class MainForm
         for (int k = 1; k <= frames; k++)
         {
             var cel = layer.EnsureCel(start + k);
-            var step = TweenStep((RasterObject)source.CloneObject(), spec, k / (double)frames);
+            var step = TweenStep(SymbolOps.Advance(_doc, (RasterObject)source.CloneObject(), k), spec, k / (double)frames);
             if (idx < cel.Objects.Count) cel.Objects[idx] = step; else cel.Objects.Add(step);
         }
         layer.Tweens.Add(new TweenSpan(start, frames, idx, spec, span.BaseOpacity, startCel.Objects.Count));

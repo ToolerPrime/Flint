@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — symbols
+
+- Edit > Symbol > Convert to symbol (F8): the selected objects become a symbol, kept in the library under Symbols, and are replaced by one instance. A symbol has its own frames.
+- Double-click an instance (Object tool), or Edit symbol in the library, to open the symbol on its own. Press Done and every copy updates, as one undo step.
+- Place symbols from the library (double-click or drag). Use Frame > Copy to frames to let an animated symbol play over frames.
+- Instance options: loop, play once or show a single frame, starting from any frame of the symbol.
+- Break apart (Ctrl+B) turns an instance into ordinary objects again. Tween instances makes an editable tween from one instance to another (move, scale, rotate, fade).
+- Saved in the project (format 14; older projects still open). Exports flatten symbols automatically.
+
 ## Unreleased — grid with snapping
 
 - View > Grid: show the grid (Ctrl+'), snap to it (Ctrl+Shift+'), and Edit grid to set the spacing across and down, an offset and the colour.

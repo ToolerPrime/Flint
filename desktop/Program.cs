@@ -169,6 +169,13 @@ internal static class Program
             return DrawTest.Run();
         }
 
+        if (args.Length >= 1 && args[0] == "--symboltest")
+        {
+            AttachConsole(-1);
+            ApplicationConfiguration.Initialize();
+            return SymbolTest.Run(args.Length >= 2 ? args[1] : "symboltest-out");
+        }
+
         if (args.Length >= 1 && args[0] == "--gridtest")
         {
             AttachConsole(-1);

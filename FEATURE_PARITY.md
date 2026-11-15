@@ -106,7 +106,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Merge down, flatten | Working | |
 | Layer groups | Missing | |
 | Masks, clipping | Partial | Bitmap cel/layer masks can be added, painted, enabled and applied; no vector clipping groups |
-| Symbols, instances, live effects, styles | Partial | Live effects have add/edit/remove/reorder controls; copy/paste appearance exists. No saved style preset library or symbol masters; imported symbol instances expand into ordinary objects |
+| Symbols, instances, live effects, styles | Partial | Graphic/animation symbols with instances (see Animation). Live effects have add/edit/remove/reorder controls; copy/paste appearance exists. No saved style preset library or button symbols; Fireworks PNG symbol instances still expand into ordinary objects |
 
 ## Optimisation and export
 
@@ -156,7 +156,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Loop, ping-pong, once; 0.25×–4× speed | Working | Timing tested in the real form |
 | Timeline zoom and scroll | Working | Ctrl+wheel, wheel |
 | Motion tween | Working | One object: move straight or along a curve (even speed), scale to %, rotate either way, fade; eases (quad, cubic, back, bounce, elastic, hold) and a custom curve you drag. Editable: Edit motion tween changes every generated frame and the frame count; saved in .flint (format 12) |
-| Animation symbols | Missing | |
+| Animation symbols | Working | Convert to Symbol (F8) makes a master with its own frames in the library; double-click an instance to edit it on its own, Done updates every copy; instances loop, play once or hold one frame, from any first frame; Copy to Frames lets them play; Break Apart (Ctrl+B); Tween Instances. Symbols inside symbols are not supported yet |
 
 ## Sprite tools (beyond Fireworks)
 

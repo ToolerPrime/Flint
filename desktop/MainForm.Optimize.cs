@@ -17,6 +17,7 @@ public sealed partial class MainForm
 
     private void ExportPreview()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         StopPlay();
         const long maxPreviewBytes = 128L * 1024 * 1024;
@@ -74,6 +75,7 @@ public sealed partial class MainForm
     /// <summary>JPEG, WebP still, BMP, TIFF and PNG-8 picked in the ordinary Export dialog.</summary>
     private void RunStillExport(int formatIndex, string path)
     {
+        LeaveSymbolEdit();
         var (filter, kind) = ExportFormats[formatIndex];
         int quality = 0;
         if (kind == ExportKind.Jpeg) quality = AskQuality("JPEG quality", 90);

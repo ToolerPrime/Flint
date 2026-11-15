@@ -100,6 +100,7 @@ public sealed class StructureEdit : IEdit
         doc.Frames.AddRange(copy.Frames);
         doc.Tags.AddRange(copy.Tags);
         doc.Audio = copy.Audio;
+        doc.Symbols = copy.Symbols;
     }
 }
 

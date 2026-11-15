@@ -139,7 +139,9 @@ public sealed partial class MainForm
         foreach (int f in list)
         {
             var cel = ActiveLayer.EnsureCel(f);
-            foreach (int i in sel.idx) cel.Objects.Add(sel.cel.Objects[i].CloneObject());
+            // A symbol instance plays on: its copy shows the frame that many frames later.
+            foreach (int i in sel.idx)
+                cel.Objects.Add(sel.cel.Objects[i] is RasterObject { Symbol: not null } r ? SymbolOps.Advance(_doc, r, f - _cur) : sel.cel.Objects[i].CloneObject());
         }
         PushStructure("copy to frames", before);
         Say($"copied {sel.idx.Length} object{(sel.idx.Length == 1 ? "" : "s")} to {list.Count} frame{(list.Count == 1 ? "" : "s")}");

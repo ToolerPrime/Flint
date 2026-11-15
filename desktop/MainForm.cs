@@ -55,7 +55,7 @@ public sealed partial class MainForm : ThemedForm
     private Document _doc = new(64, 64);
     private int _cur;                     // current frame
     private int _activeLayer;
-    private readonly UndoStack _undo = new();
+    private UndoStack _undo = new();   // swapped while a symbol is being edited
     private string? _path;
     private bool _dirty;
 
@@ -139,6 +139,7 @@ public sealed partial class MainForm : ThemedForm
 
         DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
                                           || e.Data?.GetDataPresent(LibraryPanel.DragFormat) == true
+                                          || e.Data?.GetDataPresent(LibraryPanel.SymbolDragFormat) == true
             ? DragDropEffects.Copy : DragDropEffects.None;
         DragDrop += (_, e) => HandleDrop(e);
         KeyDown += OnKey;
@@ -256,6 +257,7 @@ public sealed partial class MainForm : ThemedForm
         menu.Items.Add(audioMenu);
         MainMenuStrip = menu;
         BuildEditMenus(menu, edit, layerMenu);
+        AddSymbolMenus(edit);
 
         var tools = BuildToolStrip();
         var statusBar = new StatusStrip();
@@ -276,7 +278,11 @@ public sealed partial class MainForm : ThemedForm
         _canvas.MouseWheel += CanvasWheel;
         _canvas.MouseDoubleClick += (_, e) =>
         {
-            if (_tool == Tool.ObjectSelect && PickObject(ToImage(e.X, e.Y))) EditObjectProperties();
+            if (_tool == Tool.ObjectSelect && PickObject(ToImage(e.X, e.Y)))
+            {
+                if (SelectedInstance is { Symbol: { } s } && !EditingSymbol) EnterSymbolEdit(s.Id);   // Fireworks/Animate: double-click a symbol to edit it
+                else EditObjectProperties();
+            }
         };
 
         // ---------- toolbox ----------
@@ -1068,6 +1074,7 @@ public sealed partial class MainForm : ThemedForm
 
     private bool ConfirmDiscard(IWin32Window? owner = null)
     {
+        LeaveSymbolEdit();
         if (!_dirty || SuppressPrompts || Program.Headless) return true;
         var r = MessageBox.Show(owner ?? ProjectOwner, $"Save changes to {ProjectName} first?", "Flint",
             MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -1158,6 +1165,7 @@ public sealed partial class MainForm : ThemedForm
 
     private bool SaveProject(bool forceAsk)
     {
+        LeaveSymbolEdit();
         FinishFloat();
         string? target = _path;
         if (forceAsk || target == null)
@@ -1521,14 +1529,16 @@ public sealed partial class MainForm : ThemedForm
     private int[] Delays() => _doc.Frames.Select(f => Math.Max(1, f.Delay)).ToArray();
 
     private List<LibraryItem>? _libraryShown;
+    private IReadOnlyList<SymbolMaster>? _symbolsShown;
 
     private void RefreshAll()
     {
         if (_xf != null && (_xf.Layer != _activeLayer || _xf.Frame != _cur)) CommitTransform();
-        if (_library != null && !ReferenceEquals(_libraryShown, _doc.Library))
+        if (_library != null && (!ReferenceEquals(_libraryShown, _doc.Library) || !ReferenceEquals(_symbolsShown, RootDocument.Symbols)))
         {
-            _library.Bind(_doc.Library);
+            _library.Bind(_doc.Library, RootDocument.Symbols);
             _libraryShown = _doc.Library;
+            _symbolsShown = RootDocument.Symbols;
         }
         ClampCursors();
         CheckMaskEditTarget();
@@ -1754,6 +1764,7 @@ public sealed partial class MainForm : ThemedForm
 
     private void ExportAny()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         using var dlg = new SaveFileDialog
         {
@@ -1782,6 +1793,7 @@ public sealed partial class MainForm : ThemedForm
 
     private void ExportSequence()
     {
+        LeaveSymbolEdit();
         using var dlg = new FolderBrowserDialog { Description = "Write one PNG per frame into…" };
         if (dlg.ShowDialog(this) == DialogResult.OK) RunExport(ExportKind.Sequence, dlg.SelectedPath);
     }
@@ -1841,7 +1853,8 @@ public sealed partial class MainForm : ThemedForm
         if (!_dirty || _dragging || _play.Enabled || MouseButtons != MouseButtons.None) return;
         try
         {
-            Recovery.Write(_doc, _path, _recoverySession);
+            // While a symbol is open the project is saved as it was before it (the open edit is not included yet).
+            Recovery.Write(RootDocument, _path, _recoverySession);
             _lastAutosave = DateTime.Now;
             UpdateInfo(null);
         }

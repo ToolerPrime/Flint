@@ -7,6 +7,7 @@ public sealed partial class MainForm
 {
     private void SaveFireworksPng()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         StopPlay();
         if (FireworksPngWriter.HasCrossLayerBlending(_doc) &&

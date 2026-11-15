@@ -87,6 +87,16 @@ public sealed class RasterObject : DocObject
     public PrimitiveSpec? Primitive { get; init; }
     public TextSource? TextSource { get; init; }
     public IReadOnlyList<string> GroupPath { get; init; } = Array.Empty<string>();
+    /// <summary>Set on a symbol instance (see Symbols.cs); dropped by With(), so destructive edits make plain pixels.</summary>
+    public SymbolRef? Symbol { get; init; }
+
+    /// <summary>The same object with a different symbol link (null = a plain placed picture).</summary>
+    public RasterObject WithSymbol(SymbolRef? s) => new(Pixels)
+    {
+        Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
+        Original = Original, Matrix = Matrix, Mode = Mode, Vector = Vector, Effects = Effects,
+        Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, _up8 = _up8, Symbol = s,
+    };
 
     /// <summary>
     /// Live effects, applied in order after the object is rendered from Original or Vector through
@@ -127,7 +137,7 @@ public sealed class RasterObject : DocObject
             return new RasterObject(Pixels)
             {
                 Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Original = src, Matrix = next, Mode = Mode, _up8 = _up8, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Original = src, Matrix = next, Mode = Mode, _up8 = _up8, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
             };
         var srcPx = ImageOps.GetPixels(src);
         byte[]? up = Original != null ? _up8 : null;
@@ -137,7 +147,7 @@ public sealed class RasterObject : DocObject
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Original = src, Matrix = next, Mode = mode, _up8 = up, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Original = src, Matrix = next, Mode = mode, _up8 = up, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -148,13 +158,13 @@ public sealed class RasterObject : DocObject
             return new RasterObject(Pixels)
             {
                 Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Vector = Vector, Matrix = next, Mode = Mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+                X = X + (int)t.Tx, Y = Y + (int)t.Ty, Vector = Vector, Matrix = next, Mode = Mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
             };
         var r = WithEffects(Tracer.Render(Vector!, next, mode == Resample.Smooth));
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Vector = Vector, Matrix = next, Mode = mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Vector = Vector, Matrix = next, Mode = mode, Effects = Effects, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -168,7 +178,7 @@ public sealed class RasterObject : DocObject
     {
         Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
         Original = Original == null ? null : ImageOps.Clone(Original), Matrix = Matrix, Mode = Mode, Vector = Vector,
-        Effects = Effects == null ? null : new List<ObjectEffect>(Effects), Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+        Effects = Effects == null ? null : new List<ObjectEffect>(Effects), Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
     };
 
     /// <summary>
@@ -207,7 +217,7 @@ public sealed class RasterObject : DocObject
         return new RasterObject(ImageOps.FromPixels(r.w, r.h, r.px))
         {
             Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend,
-            X = r.x, Y = r.y, Original = orig, Vector = Vector, Matrix = m, Mode = Mode, Effects = fx, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath,
+            X = r.x, Y = r.y, Original = orig, Vector = Vector, Matrix = m, Mode = Mode, Effects = fx, Primitive = Primitive, TextSource = TextSource, GroupPath = GroupPath, Symbol = Symbol,
         };
     }
 
@@ -215,7 +225,7 @@ public sealed class RasterObject : DocObject
     {
         Name = Name, Visible = Visible, Opacity = Opacity, Blend = Blend, X = X, Y = Y,
         Original = Original, Matrix = Matrix, Mode = Mode, Vector = Vector, Effects = Effects,
-        Primitive = Primitive, TextSource = TextSource, GroupPath = ObjectGroups.Validate(path), _up8 = _up8,
+        Primitive = Primitive, TextSource = TextSource, GroupPath = ObjectGroups.Validate(path), _up8 = _up8, Symbol = Symbol,
     };
 
     /// <summary>The same object shifted by whole pixels; keeps its original and matrix.</summary>
@@ -424,6 +434,8 @@ public sealed class Document
     public AudioProject Audio = new();
     /// <summary>Ruler guides. Always replaced, never edited in place, so undo closures can hold the old list.</summary>
     public IReadOnlyList<Guide> Guides = Array.Empty<Guide>();
+    /// <summary>Symbol masters. The list is replaced, never edited; masters are immutable. Inside undo.</summary>
+    public IReadOnlyList<SymbolMaster> Symbols = Array.Empty<SymbolMaster>();
     /// <summary>View > Grid settings, saved with the document. Replaced, never changed in place.</summary>
     public GridSpec Grid = GridSpec.Default;
 
@@ -618,6 +630,7 @@ public sealed class Document
         foreach (var t in Tags) d.Tags.Add(t.Clone());
         d.Audio = Audio.Clone();
         d.Library = Library;
+        d.Symbols = Symbols;
         return d;
     }
 
@@ -636,6 +649,7 @@ public sealed class Document
                         if (r.Original != null) set.Add(r.Original);
                     }
             }
+        foreach (var m in Symbols) set.UnionWith(m.Content.RasterBitmaps());
         return set;
     }
 
@@ -647,6 +661,7 @@ public sealed class Document
             foreach (var c in l.Cels.Values)
                 foreach (var o in c.Objects)
                     if (o is RasterObject { Vector: { } v }) set.Add(v);
+        foreach (var m in Symbols) set.UnionWith(m.Content.VectorArts());
         return set;
     }
 
@@ -747,6 +762,7 @@ public sealed class Document
         foreach (var t in Tags) d.Tags.Add(t.Clone());
         d.Audio = Audio.Clone();
         d.Library = Library.Select(i => new LibraryItem(i.Name, ImageOps.Clone(i.Pixels), i.Source)).ToList();
+        d.Symbols = Symbols;
         return d;
     }
 
@@ -761,6 +777,7 @@ public sealed class Document
                 foreach (var o in c.Objects)
                     if (o is RasterObject r) n += (long)r.Width * r.Height * 4;
             }
+        foreach (var m in Symbols) n += m.Content.ApproximateBytes();
         return n;
     }
 
@@ -771,7 +788,7 @@ public sealed class Document
             {
                 c.Mask?.Pixels.Dispose();
                 foreach (var o in c.Objects)
-                    if (o is RasterObject r) r.Pixels.Dispose();
+                    if (o is RasterObject { Symbol: null } r) r.Pixels.Dispose();   // instances may share cached frames
             }
     }
 }

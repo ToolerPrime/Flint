@@ -352,7 +352,7 @@ public sealed partial class MainForm
             BorderStyle = BorderStyle.None,
         };
         _history.DrawItem += DrawHistoryItem;
-        _undo.Pushed += () => { if (!_historyBusy) RefreshHistory(); };
+        _undo.Pushed += OnUndoPushed;
         _history.SelectedIndexChanged += (_, _) => { if (!_historyBusy) JumpToHistory(_history.SelectedIndex); };
         historyPanel.Controls.Add(_history);
         var layersPanel = new Panel { Padding = new Padding(4, 0, 4, 0) };

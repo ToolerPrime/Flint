@@ -48,7 +48,7 @@ public sealed partial class MainForm
         return r;
     }
 
-    private bool CreateTween(TweenSpec spec, string label)
+    private bool CreateTween(TweenSpec spec, string label, Document? beforeArg = null)
     {
         if (!CanTweenObject()) return false;
         int frames = spec.NewFrames;
@@ -78,6 +78,7 @@ public sealed partial class MainForm
                 var copy = sources[i].Cel.Clone();
                 // Step from the clone, which owns its pixels: a step made from the start
                 // frame's own object would share the bitmap that frame can still paint.
+                SymbolOps.AdvanceCel(_doc, copy, step);   // symbol instances play on through the new frames
                 if (sources[i].Layer == tweenLayer)
                     copy.Objects[objectIndex] = TweenStep((RasterObject)copy.Objects[objectIndex], spec, step / (double)frames);
                 newCels[step - 1, i] = copy;
@@ -85,7 +86,7 @@ public sealed partial class MainForm
         }
         var startState = spec.OpacityFrom.HasValue || spec.ScaleFrom != 100 ? TweenStep((RasterObject)original.CloneObject(), spec, 0) : null;
 
-        var before = Before();
+        var before = beforeArg ?? Before();
         if (startState != null) tweenLayer.Cels[start].Objects[objectIndex] = startState;
         for (int step = 1; step <= frames; step++)
         {

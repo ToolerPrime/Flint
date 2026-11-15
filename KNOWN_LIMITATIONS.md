@@ -184,9 +184,41 @@ against Fireworks are in `FEATURE_PARITY.md`.
   export is the whole timeline's sound; videos and atlas sound skip left-out
   frames. Saving as an editable Fireworks PNG does not keep the setting.
 
+## Symbols
+
+- Symbols cannot contain other symbols yet. Converting refuses objects with a
+  blend mode other than Normal.
+- Editing a symbol opens it on its own (no editing in place over the
+  document); the steps made inside it become one undo step after Done.
+  Autosave waits until you press Done.
+- Placing an animated symbol puts it on the current frame only; Copy to frames
+  (or a tween) makes it play over frames. Duplicate frame and Add frames copy
+  it showing the same symbol frame. On a shared layer an instance shows one
+  fixed frame.
+- The symbol's canvas is the size of what was converted; what lies outside it
+  is not shown.
+- Painting on the layer, destructive filters and clipping turn an instance
+  into a plain picture, as they do for vectors and text.
+- Fireworks PNG symbols still open as ordinary objects; GIF, video,
+  Aseprite and Fireworks PNG exports flatten symbols.
+- Tween instances: the lower selected instance is the start; move, scale,
+  rotation and opacity are tweened, skew and flips are refused. The end
+  instance's play mode, first frame and effects are not carried over, and the
+  last frame can sit up to half a pixel from it (moves are whole pixels).
+- Converting overlapping semi-transparent objects, or objects on a layer
+  below 100% opacity, can shift some pixels by one level. Break apart splits
+  into objects only when that is exact (whole-pixel placement, full opacity,
+  plain layers, parts not overlapping); otherwise it gives one flat picture.
+- Inside a symbol, tags, guides, the grid and sound are not kept.
+- A symbol instance pasted into another project (or inside a symbol) is saved
+  as a plain picture. A damaged instance in a file opens as an invisible
+  placeholder with a note.
+- Autosave while a symbol is open saves the project as it was before the
+  symbol was opened.
+
 ## Format
 
-- `.flint` is at version 13. Builds older than a file's version refuse it
+- `.flint` is at version 14. Builds older than a file's version refuse it
   with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides

@@ -243,6 +243,7 @@ public sealed partial class MainForm
 
     private void ExportLayerSvg()
     {
+        LeaveSymbolEdit();
         FinishFloat();
         var o = ActiveLayer.CelAt(_cur)?.Objects.OfType<RasterObject>().LastOrDefault(r => r.Vector != null);
         if (o == null) { Say("this layer has no traced vector art: use Image > Trace bitmap first"); return; }
