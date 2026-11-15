@@ -165,9 +165,16 @@ against Fireworks are in `FEATURE_PARITY.md`.
 
 ## Frame helpers
 
-- Animate Selection and the motion tween make ordinary frames, not an
-  animation symbol, so changing the animation later means editing frames
-  (editable tweens are planned). Rotation and scaling resample the object
+- Animate Selection makes ordinary frames. The motion tween stays editable
+  (Frame > Edit motion tween) until a frame is added or removed inside it,
+  or it is removed; then its frames are plain frames. Edit motion tween
+  rebuilds the tweened object in every generated frame, so changes painted on
+  that object in a middle frame are replaced. If objects are added to or
+  deleted from the tween's first frame (painting there can add one), Edit
+  refuses and asks you to remove and re-create the tween; reordering objects
+  there is not detected. Making the layer shared or merging it down drops
+  its tweens. The timeline does not yet mark
+  which frames belong to a tween. One object per tween. Rotation and scaling resample the object
   each frame from its original, so pixel art turned by angles that are not
   quarter turns gets soft or jagged edges.
 - Distribute to Frames and Copy to Frames work on the selected objects of one
@@ -179,7 +186,7 @@ against Fireworks are in `FEATURE_PARITY.md`.
 
 ## Format
 
-- `.flint` is at version 11. Builds older than a file's version refuse it
+- `.flint` is at version 12. Builds older than a file's version refuse it
   with a clear message instead of opening it with data missing.
 
 ## Export preview, rulers and guides

@@ -154,7 +154,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Onion skin | Working | Before/after counts, opacity, red/blue tint |
 | Loop, ping-pong, once; 0.25×–4× speed | Working | Timing tested in the real form |
 | Timeline zoom and scroll | Working | Ctrl+wheel, wheel |
-| Motion tween | Partial | Linear movement of one object across generated frames. Editable tween spans, easing, and curved paths are pending. |
+| Motion tween | Working | One object: move straight or along a curve (even speed), scale to %, rotate either way, fade; eases (quad, cubic, back, bounce, elastic, hold) and a custom curve you drag. Editable: Edit motion tween changes every generated frame and the frame count; saved in .flint (format 12) |
 | Animation symbols | Missing | |
 
 ## Sprite tools (beyond Fireworks)

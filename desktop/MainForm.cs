@@ -227,7 +227,12 @@ public sealed partial class MainForm : ThemedForm
         var frameMenu = new ToolStripMenuItem("F&rame");
         frameMenu.DropDownItems.Add("&Add blank frame", null, (_, _) => AddBlankFrame());
         frameMenu.DropDownItems.Add("D&uplicate frame", null, (_, _) => DuplicateFrame());
-        frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunMotionTween());
+        frameMenu.DropDownItems.Add("Create &motion tween…", null, (_, _) => RunTweenDialog());
+        var editTween = new ToolStripMenuItem("&Edit motion tween…", null, (_, _) => RunEditTween());
+        var removeTween = new ToolStripMenuItem("Remove t&ween", null, (_, _) => RemoveTween());
+        frameMenu.DropDownItems.Add(editTween);
+        frameMenu.DropDownItems.Add(removeTween);
+        frameMenu.DropDownOpening += (_, _) => editTween.Enabled = removeTween.Enabled = TweenHere != null;
         frameMenu.DropDownItems.Add("De&lete frame", null, (_, _) => DeleteFrame());
         frameMenu.DropDownItems.Add(new ToolStripSeparator());
         AddFrameHelperMenus(frameMenu);
@@ -930,6 +935,7 @@ public sealed partial class MainForm : ThemedForm
             return;
         }
         var before = Before();
+        lower.Tweens = new();                       // merged objects no longer match the tween's object
 
         var frames = lower.Shared ? new[] { 0 } : Enumerable.Range(0, _doc.FrameCount).ToArray();
         foreach (int f in frames)
@@ -1036,6 +1042,7 @@ public sealed partial class MainForm : ThemedForm
             var cel = l.Cels.TryGetValue(_cur, out var c) ? c : new Cel();
             l.Cels.Clear();
             l.Cels[0] = cel;
+            l.Tweens = new();                       // one picture for every frame has nothing to tween
         }
         l.Shared = shared;
         PushStructure("shared layer", before);

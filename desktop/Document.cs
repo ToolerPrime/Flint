@@ -303,6 +303,17 @@ public sealed class Layer
 
     /// <summary>Sparse: frame index to cel. A missing key means an empty frame.</summary>
     public readonly Dictionary<int, Cel> Cels = new();
+    /// <summary>Editable tweens on this layer. Spans are replaced, never changed in place.</summary>
+    public List<TweenSpan> Tweens = new();
+
+    /// <summary>Tweens follow their frames; a span whose frames no longer sit together (a frame added or removed inside) becomes plain frames.</summary>
+    public void RemapTweens(Func<int, int?> map)
+    {
+        if (Tweens.Count == 0) return;
+        // Every frame of the span must land in order right after the new start.
+        Tweens = Tweens.Where(s => map(s.Start) is int a && Enumerable.Range(1, s.Frames).All(i => map(s.Start + i) == a + i))
+            .Select(s => s with { Start = map(s.Start)!.Value }).ToList();
+    }
 
     public Cel? CelAt(int frame)
     {
@@ -340,6 +351,7 @@ public sealed class Layer
 
     private Layer CopyProps() => new()
     {
+        Tweens = new List<TweenSpan>(Tweens),
         Name = Name, Visible = Visible, Locked = Locked,
         Shared = Shared, Opacity = Opacity, Blend = Blend, MaskEnabled = MaskEnabled, MaskLinked = MaskLinked,
     };
@@ -348,6 +360,7 @@ public sealed class Layer
     public void RemapFrames(Func<int, int?> map)
     {
         if (Shared) return;
+        RemapTweens(map);
         var next = new Dictionary<int, Cel>();
         foreach (var (k, v) in Cels)
         {
@@ -479,6 +492,7 @@ public sealed class Document
         }
         var perm = Enumerable.Range(0, Frames.Count).ToArray();
         perm[a] = b; perm[b] = a;
+        foreach (var l in Layers) l.RemapTweens(k => perm[k]);
         RemapTags(perm);
     }
 
@@ -520,6 +534,7 @@ public sealed class Document
             var old = l.Cels.ToList();
             l.Cels.Clear();
             foreach (var (k, v) in old) l.Cels[perm[k]] = v;
+            l.RemapTweens(k => perm[k]);
         }
 
         RemapTags(perm);

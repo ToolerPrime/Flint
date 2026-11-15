@@ -22,6 +22,16 @@ Windows Media Foundation) AAC, WMA and FLAC. Version 2.2.1, MIT licence.
 Bundled inside the self-contained executable.
 https://github.com/naudio/NAudio
 
+### EffectCraft — ArtCraft Team and the EffectCraft contributors
+
+`desktop/Easing.cs` translates the cubic-bezier time solve (Newton steps with
+a bisection fallback) and the arc-length table used to move at an even speed
+along a curve from EffectCraft (https://github.com/storytold/effectcraft),
+`crates/keyframe/src/lib.rs`. Copyright (c) 2026 ArtCraft Team and the
+EffectCraft contributors. Used under the MIT licence (EffectCraft is MIT or
+Apache-2.0 at the user's option); the MIT notice below under PhotoCraft
+applies equally. The ArtCraft name and logos are not used in Flint.
+
 ### PhotoCraft — ArtCraft Team and the PhotoCraft contributors
 
 `desktop/ColourPickerDialog.cs` translates the colour picker's layout and

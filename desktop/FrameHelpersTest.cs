@@ -201,8 +201,8 @@ public static class FrameHelpersTest
             using (var z = ZipFile.OpenRead(flint))
             {
                 var json = JsonNode.Parse(new StreamReader(z.GetEntry("project.json")!.Open()).ReadToEnd())!;
-                Check(json["format"]!.GetValue<int>() == 11 && json["frames"]![0]!["export"] == null && json["frames"]![1]!["export"]!.GetValue<bool>() == false,
-                      "format 11; only left-out frames write the flag");
+                Check(json["format"]!.GetValue<int>() >= 11 && json["frames"]![0]!["export"] == null && json["frames"]![1]!["export"]!.GetValue<bool>() == false,
+                      "format 11 or later; only left-out frames write the flag");
                 // A version-10 file (no flag) loads with every frame exported.
                 json["format"] = 10;
                 foreach (var fr in json["frames"]!.AsArray()) fr!.AsObject().Remove("export");

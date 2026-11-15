@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — tweens with easing
+
+- The motion tween can now also scale, rotate (clockwise or counter-clockwise) and fade the object, and move it along a curved path at an even speed.
+- Eases: linear, ease in / out / in-out (quad and cubic), back, bounce, elastic, hold, and a custom curve you shape by dragging two handles.
+- Tweens stay editable: on any frame of a tween, Frame > Edit motion tween changes it and every frame follows, even a new number of frames. Move the object on the first frame and edit the tween to make the rest follow. Remove tween keeps the frames as they are. Saved in the project (format 12; older projects still open).
+- The custom-curve maths and even-speed path are translated from EffectCraft (see CREDITS_LICENSES.md).
+
 ## Unreleased — frame helpers from Fireworks
 
 - Frame > Animate selection: turn the selected object into an animation over a number of frames: move it a distance in a direction, scale it, fade it, and spin it clockwise or counter-clockwise.

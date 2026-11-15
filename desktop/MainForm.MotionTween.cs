@@ -6,17 +6,6 @@ public sealed partial class MainForm
     private const int MaxTweenOffset = 20_000;
     private const long TweenPixelBudget = 256L * 1024 * 1024;
 
-    private void RunMotionTween()
-    {
-        FinishFloat();
-        StopPlay();
-        if (!CanTweenObject()) return;
-
-        using var dialog = new MotionTweenDialog();
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-            CreateMotionTween(dialog.Offset, dialog.Frames);
-    }
-
     private bool CanTweenObject()
     {
         if (ActiveLayer.Shared) { Say("Motion tween needs a layer with separate frames."); return false; }
@@ -28,23 +17,6 @@ public sealed partial class MainForm
         return true;
     }
 
-    /// <summary>
-    /// What a tween does to the selected object across new frames after the
-    /// current one: move, scale and rotate about its centre, fade. Step k of N
-    /// uses t = k/N; the current frame is t = 0. Moves are rounded to whole
-    /// pixels so pixel art stays sharp.
-    /// </summary>
-    internal sealed class TweenSpec
-    {
-        public int NewFrames;
-        public double Dx, Dy;
-        public double ScaleFrom = 100, ScaleTo = 100;      // percent
-        public double? OpacityFrom, OpacityTo;             // percent; null = keep the object's own
-        public double Rotate;                              // degrees, + clockwise
-        public bool Moves => Dx != 0 || Dy != 0;
-        public bool Changes => Moves || ScaleFrom != 100 || ScaleTo != 100 || Rotate != 0 || OpacityFrom.HasValue || OpacityTo.HasValue;
-    }
-
     private bool CreateMotionTween(Point offset, int frames)
     {
         if (offset.IsEmpty) { Say("Enter a horizontal or vertical distance to move."); return false; }
@@ -54,9 +26,12 @@ public sealed partial class MainForm
     /// <summary>The selected object at tween position <paramref name="t"/> (0..1), made from the original each time so nothing degrades.</summary>
     internal static RasterObject TweenStep(RasterObject o, TweenSpec s, double t)
     {
-        int dx = (int)Math.Round(s.Dx * t, MidpointRounding.AwayFromZero);
-        int dy = (int)Math.Round(s.Dy * t, MidpointRounding.AwayFromZero);
-        double scale = (s.ScaleFrom + (s.ScaleTo - s.ScaleFrom) * t) / 100, rot = s.Rotate * t;
+        double e = s.Ease.Apply(t);
+        var (px, py) = s.CurveX is double ctlX && s.CurveY is double ctlY ? new MotionPath(s.Dx, s.Dy, ctlX, ctlY).Point(e) : (s.Dx * e, s.Dy * e);
+        int dx = (int)Math.Round(px, MidpointRounding.AwayFromZero);
+        int dy = (int)Math.Round(py, MidpointRounding.AwayFromZero);
+        double scale = Math.Max(0.01, (s.ScaleFrom + (s.ScaleTo - s.ScaleFrom) * e) / 100), rot = s.Rotate * e;
+        t = e;                                             // fades follow the ease too
         RasterObject r;
         if (Math.Abs(scale - 1) < 1e-9 && Math.Abs(rot) < 1e-9) r = dx == 0 && dy == 0 ? (RasterObject)o.CloneObject() : o.Moved(dx, dy);
         else
@@ -90,15 +65,7 @@ public sealed partial class MainForm
         var tweenLayer = ActiveLayer;
         var sources = _doc.Layers.Where(layer => !layer.Shared && layer.Cels.ContainsKey(start))
             .Select(layer => (Layer: layer, Cel: layer.Cels[start])).ToArray();
-        long bytesPerFrame = sources.Sum(source =>
-            source.Cel.Objects.Sum(TweenObjectBytes) + TweenObjectBytes(source.Cel.Mask));
-        double grow = Math.Max(1, Math.Max(spec.ScaleFrom, spec.ScaleTo) / 100);
-        bytesPerFrame += (long)(TweenObjectBytes(tweenLayer.Cels[start].Objects[objectIndex]) * (grow * grow * 2));
-        if (bytesPerFrame > TweenPixelBudget / frames)
-        {
-            Say("These frames would copy too many pixels. Try fewer new frames.");
-            return false;
-        }
+        if (!TweenFits(start, tweenLayer.Cels[start].Objects[objectIndex], spec, frames)) return false;
 
         // Make independent copies before changing the timeline. In particular, moving a
         // plain raster directly would reuse pixels that the start frame can still paint.
@@ -128,10 +95,33 @@ public sealed partial class MainForm
                 sources[i].Layer.Cels.Add(frame, newCels[step - 1, i]);
         }
 
+        tweenLayer.Tweens.Add(new TweenSpan(start, frames, objectIndex, spec.Clone(), original.Opacity, tweenLayer.Cels[start].Objects.Count));
         _cur = _selStart = _selEnd = start + frames;
         SelectObject(objectIndex);
         PushStructure(label, before);
         Say($"{(label == "create motion tween" ? "Motion tween" : "Animation")} created with {frames} new {(frames == 1 ? "frame" : "frames")}.");
+        return true;
+    }
+
+    /// <summary>Limits and the pixel budget, shared by Create and Edit: <paramref name="frames"/> copies of every layer's cel at <paramref name="copyFrom"/>.</summary>
+    private bool TweenFits(int copyFrom, DocObject tweened, TweenSpec spec, int frames)
+    {
+        double[] values = { spec.Dx, spec.Dy, spec.ScaleFrom, spec.ScaleTo, spec.Rotate, spec.CurveX ?? 0, spec.CurveY ?? 0, spec.OpacityFrom ?? 0, spec.OpacityTo ?? 0 };
+        if (frames is < 1 or > MaxTweenFrames || values.Any(v => !double.IsFinite(v)) || Math.Abs(spec.Dx) > MaxTweenOffset || Math.Abs(spec.Dy) > MaxTweenOffset ||
+            spec.ScaleFrom is <= 0 or > 1000 || spec.ScaleTo is <= 0 or > 1000)
+        {
+            Say("The distance, scale or frame count is outside the tween limits.");
+            return false;
+        }
+        long bytesPerFrame = _doc.Layers.Where(l => !l.Shared && l.Cels.ContainsKey(copyFrom))
+            .Sum(l => l.Cels[copyFrom].Objects.Sum(TweenObjectBytes) + TweenObjectBytes(l.Cels[copyFrom].Mask));
+        double grow = Math.Max(1, Math.Max(spec.ScaleFrom, spec.ScaleTo) / 100);
+        bytesPerFrame += (long)(TweenObjectBytes(tweened) * (grow * grow * 2));
+        if (bytesPerFrame > TweenPixelBudget / frames)
+        {
+            Say("These frames would copy too many pixels. Try fewer frames or a smaller scale.");
+            return false;
+        }
         return true;
     }
 
@@ -145,52 +135,4 @@ public sealed partial class MainForm
     }
 
     internal bool TestCreateMotionTween(Point offset, int frames) => CreateMotionTween(offset, frames);
-
-    private sealed class MotionTweenDialog : ThemedForm
-    {
-        private readonly NumericUpDown _x, _y, _frames;
-
-        public Point Offset => new((int)_x.Value, (int)_y.Value);
-        public int Frames => (int)_frames.Value;
-
-        public MotionTweenDialog()
-        {
-            Text = "Create motion tween";
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            StartPosition = FormStartPosition.CenterParent;
-            MinimizeBox = MaximizeBox = ShowInTaskbar = false;
-            ClientSize = new Size(312, 186);
-            var tips = Theme.MakeTip();
-            Disposed += (_, _) => tips.Dispose();
-
-            _x = Number("&Horizontal (px)", 18, -MaxTweenOffset, MaxTweenOffset, 32, "Negative values move left.");
-            _y = Number("&Vertical (px)", 52, -MaxTweenOffset, MaxTweenOffset, 0, "Negative values move up.");
-            _frames = Number("&New frames", 86, 1, MaxTweenFrames, 6, "Number of frames to add after the current frame.");
-
-            var create = new Button { Text = "Create", Left = 120, Top = 138, Width = 84, DialogResult = DialogResult.OK };
-            var cancel = new Button { Text = "Cancel", Left = 212, Top = 138, Width = 84, DialogResult = DialogResult.Cancel };
-            Controls.Add(create);
-            Controls.Add(cancel);
-            tips.SetToolTip(create, "Add the new frames to the timeline.");
-            tips.SetToolTip(cancel, "Close without adding frames.");
-            AcceptButton = create;
-            CancelButton = cancel;
-
-            NumericUpDown Number(string label, int top, int min, int max, int value, string hint)
-            {
-                var caption = new Label { Text = label, Left = 16, Top = top + 3, Width = 144 };
-                var input = new NumericUpDown
-                {
-                    AccessibleName = label.Replace("&", ""),
-                    Left = 164, Top = top, Width = 132, Minimum = min, Maximum = max, Value = value,
-                    TextAlign = HorizontalAlignment.Right,
-                };
-                Controls.Add(caption);
-                Controls.Add(input);
-                tips.SetToolTip(caption, hint);
-                tips.SetToolTip(input, hint);
-                return input;
-            }
-        }
-    }
 }

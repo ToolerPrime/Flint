@@ -34,9 +34,10 @@ public static class FlintFormat
     /// 9: editable primitive and text source properties on rendered objects.
     /// 10: nested logical group paths on objects.
     /// 11: per-frame "export": false for frames left out of exports.
+    /// 12: editable tween spans per layer ("tweens").
     /// Older versions load unchanged; their missing fields take defaults.
     /// </summary>
-    public const int CurrentVersion = 11;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
+    public const int CurrentVersion = 12;   // 8: guides; 7: layer masks; 6: gradient fills, live effects; 5: traced vector objects; 4: library, lossless transformed objects
     public const string Extension = ".flint";
 
     public sealed class LoadResult
@@ -156,6 +157,7 @@ public static class FlintFormat
                         ["blend"] = l.Blend.ToString(),
                         ["cels"] = cels,
                     };
+                    if (l.Tweens.Count > 0) layerNode["tweens"] = new JsonArray(l.Tweens.Select(TweenToJson).ToArray());
                     if (!l.MaskEnabled) layerNode["maskEnabled"] = false;
                     if (!l.MaskLinked) layerNode["maskLinked"] = false;
                     layers.Add(layerNode);
@@ -187,6 +189,55 @@ public static class FlintFormat
     }
 
     // ---------- load ----------
+
+    private static JsonNode TweenToJson(TweenSpan t)
+    {
+        var s = t.Spec;
+        var o = new JsonObject
+        {
+            ["start"] = t.Start, ["frames"] = t.Frames, ["object"] = t.ObjectIndex,
+            ["dx"] = s.Dx, ["dy"] = s.Dy, ["scaleFrom"] = s.ScaleFrom, ["scaleTo"] = s.ScaleTo, ["rotate"] = s.Rotate,
+            ["ease"] = s.Ease.Kind.ToString(),
+        };
+        if (s.Ease.Kind == EaseKind.Custom) o["bezier"] = new JsonArray(s.Ease.X1, s.Ease.Y1, s.Ease.X2, s.Ease.Y2);
+        if (s.OpacityFrom is { } of) o["opacityFrom"] = of;
+        if (s.OpacityTo is { } ot) o["opacityTo"] = ot;
+        if (s.CurveX is { } cx && s.CurveY is { } cy) o["curve"] = new JsonArray(cx, cy);
+        if (t.BaseOpacity != 255) o["baseOpacity"] = t.BaseOpacity;
+        if (t.StartCount >= 0) o["startCount"] = t.StartCount;
+        return o;
+    }
+
+    private static TweenSpan? TweenFromJson(JsonNode n)
+    {
+        // Anything out of range drops the tween (its frames stay); a file must never crash Edit.
+        try
+        {
+        int start = n["start"]?.GetValue<int>() ?? -1, frames = n["frames"]?.GetValue<int>() ?? 0, obj = n["object"]?.GetValue<int>() ?? -1;
+        if (start < 0 || frames is < 1 or > 120 || obj < 0) return null;
+        string? kn = n["ease"]?.GetValue<string>();
+        var kind = kn != null && Enum.TryParse<EaseKind>(kn, out var k) && Enum.IsDefined(k) && !int.TryParse(kn, out _) ? k : EaseKind.Linear;
+        var bz = n["bezier"]?.AsArray();
+        var ease = kind == EaseKind.Custom && bz is { Count: 4 }
+            ? new Ease(kind, bz[0]!.GetValue<double>(), bz[1]!.GetValue<double>(), bz[2]!.GetValue<double>(), bz[3]!.GetValue<double>())
+            : new Ease(kind);
+        if (kind == EaseKind.Custom && !(ease.X1 is >= 0 and <= 1 && ease.X2 is >= 0 and <= 1 && ease.Y1 is >= -0.5 and <= 1.5 && ease.Y2 is >= -0.5 and <= 1.5))
+            ease = new Ease(EaseKind.Linear);
+        var spec = new TweenSpec
+        {
+            NewFrames = frames, Dx = n["dx"]?.GetValue<double>() ?? 0, Dy = n["dy"]?.GetValue<double>() ?? 0,
+            ScaleFrom = n["scaleFrom"]?.GetValue<double>() ?? 100, ScaleTo = n["scaleTo"]?.GetValue<double>() ?? 100,
+            Rotate = n["rotate"]?.GetValue<double>() ?? 0, Ease = ease,
+            OpacityFrom = n["opacityFrom"]?.GetValue<double>(), OpacityTo = n["opacityTo"]?.GetValue<double>(),
+        };
+        if (n["curve"]?.AsArray() is { Count: 2 } c) { spec.CurveX = c[0]!.GetValue<double>(); spec.CurveY = c[1]!.GetValue<double>(); }
+        double[] v = { spec.Dx, spec.Dy, spec.ScaleFrom, spec.ScaleTo, spec.Rotate, spec.CurveX ?? 0, spec.CurveY ?? 0, spec.OpacityFrom ?? 0, spec.OpacityTo ?? 0 };
+        if (v.Any(x => !double.IsFinite(x) || Math.Abs(x) > 100_000) || spec.ScaleFrom is <= 0 or > 1000 || spec.ScaleTo is <= 0 or > 1000 ||
+            spec.OpacityFrom is < 0 or > 100 || spec.OpacityTo is < 0 or > 100) return null;
+        return new TweenSpan(start, frames, obj, spec, (byte)Math.Clamp(n["baseOpacity"]?.GetValue<int>() ?? 255, 0, 255), n["startCount"]?.GetValue<int>() ?? -1);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException or ArgumentException or NullReferenceException) { return null; }
+    }
 
     public static LoadResult Load(string path)
     {
@@ -270,6 +321,7 @@ public static class FlintFormat
                     MaskLinked = ln["maskLinked"]?.GetValue<bool>() ?? true,
                 };
 
+
                 foreach (var cn in ln["cels"]?.AsArray() ?? new JsonArray())
                 {
                     if (cn == null) continue;
@@ -335,6 +387,11 @@ public static class FlintFormat
                     else if (cn["mask"] != null) result.Warnings.Add($"a layer mask on '{layer.Name}' is missing from the file");
                     layer.Cels[frameKey] = cel;
                 }
+                if (!layer.Shared)
+                    foreach (var tn in ln["tweens"]?.AsArray() ?? new JsonArray())
+                        if (tn != null && TweenFromJson(tn) is { } span && span.End < doc.Frames.Count &&
+                            layer.Cels.TryGetValue(span.Start, out var sc) && span.ObjectIndex < sc.Objects.Count && sc.Objects[span.ObjectIndex] is RasterObject)
+                            layer.Tweens.Add(span);
                 doc.Layers.Add(layer);
             }
 
