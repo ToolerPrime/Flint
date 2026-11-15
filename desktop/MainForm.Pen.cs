@@ -472,7 +472,7 @@ public sealed partial class MainForm
             var bottomFill = sel[0].basis.Vector!.Path!;
             results = PathOps.Combine(op, inputs, bottomFill.HasFill ? bottomFill.Fill : bottomFill.Stroke);
         }
-        catch (InvalidOperationException ex) { Say(ex.Message); return false; }
+        catch (Clipper2Lib.ClipperLibException ex) { Say("These paths could not be combined: " + ex.Message); return false; }
         if (op is CombineOp.Union or CombineOp.Intersect && results[0] == null) { Say("Nothing would be left."); return false; }
         // Every new object is made before the document changes, so a failure leaves it untouched.
         var made = new List<RasterObject?>();

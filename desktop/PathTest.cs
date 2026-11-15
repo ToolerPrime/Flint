@@ -107,8 +107,8 @@ public static class PathTest
             var cu = PathOps.Combine(CombineOp.Union, new[] { P(CA), P(CB) }, 0xFF000000)[0]!;
             var ci = PathOps.Combine(CombineOp.Intersect, new[] { P(CA), P(CB) }, 0xFF000000)[0]!;
             double sum = Area(cu) + Area(ci), want = Area(CA) + Area(CB);
-            Check(Math.Abs(sum - want) / want < 0.005 && Math.Abs(Area(CA) - Math.PI * 100) / (Math.PI * 100) < 0.002,
-                  $"circles: union + intersection = both circles within 0.5% ({sum:0.0} vs {want:0.0})");
+            Check(Math.Abs(sum - want) / want < 0.001 && Math.Abs(Area(CA) - Math.PI * 100) / (Math.PI * 100) < 0.002,
+                  $"circles: union + intersection = both circles within 0.1% ({sum:0.0} vs {want:0.0})");
             var cov = Cover(cu); var cov2 = Cover(CA).Union(Cover(CB));
             Check(cov.Except(cov2).Count() + cov2.Except(cov).Count() <= cov2.Count() * 0.02, "curved union matches the pixel union on all but a few edge pixels");
             Check(cu.NodeCount < 30, $"the curved result is smooth curves with few points ({cu.NodeCount})");
@@ -136,13 +136,27 @@ public static class PathTest
             var line = new PathSource(ImmutableArray.Create(new SubPath(ImmutableArray.Create(PathNode.Corner(10, 10), PathNode.Corner(30, 10)), false)), 0, 0xFF000000, 4);
             var ex = PathOps.ExpandStroke(line, Affine.Identity, 4, 0xFF000000)!;
             double wantE = 80 + 4 * Math.PI;
-            Check(Math.Abs(Area(ex) - wantE) / wantE < 0.02 && ex.Stroke == 0 && ex.HasFill, $"expand stroke: a 20 px line 4 wide becomes a filled outline of area {Area(ex):0.0} (want {wantE:0.0})");
+            Check(Math.Abs(Area(ex) - wantE) / wantE < 0.003 && ex.Stroke == 0 && ex.HasFill, $"expand stroke: a 20 px line 4 wide becomes a filled outline of area {Area(ex):0.0} (want {wantE:0.0})");
             var inset = PathOps.Offset(PathOps.FillPolygons(Rect(0, 0, 20, 20), Affine.Identity), -2, 0xFF000000)!;
             Check(Math.Abs(Area(inset) - 256) < 1e-6 && inset.NodeCount == 4, $"inset 2: a 20x20 square becomes 16x16 ({Area(inset):0.##})");
             var outset = PathOps.Offset(PathOps.FillPolygons(Rect(0, 0, 20, 20), Affine.Identity), 2, 0xFF000000)!;
             double wantO = 400 + 160 + 4 * Math.PI;
-            Check(Math.Abs(Area(outset) - wantO) / wantO < 0.01, $"outset 2 with round corners: area {Area(outset):0.0} (want {wantO:0.0})");
+            Check(Math.Abs(Area(outset) - wantO) / wantO < 0.002, $"outset 2 with round corners: area {Area(outset):0.0} (want {wantO:0.0})");
             Check(PathOps.Offset(PathOps.FillPolygons(Rect(0, 0, 20, 20), Affine.Identity), -11, 0) == null, "insetting more than half the width leaves nothing");
+            var ring = new PathSource(Rect(0, 0, 20, 20).Subpaths.AddRange(Rect(5, 5, 15, 15).Subpaths), 0xFF000000, 0, 0);
+            var ringIn = PathOps.Offset(PathOps.FillPolygons(ring, Affine.Identity), -2, 0xFF000000)!;
+            Check(Math.Abs(Area(ringIn) - (256 - 196)) < 1e-6 && ringIn.Subpaths.Length == 2, $"inset 2 on a square with a hole: area 60, hole corners sharp ({Area(ringIn):0.##})");
+            var closedLine = PathOps.ExpandStroke(Rect(10, 10, 30, 30, 0, 0xFF000000, 4), Affine.Identity, 4, 0xFF000000)!;
+            Check(Math.Abs(Area(closedLine) - (24 * 24 - 4 * (4 - Math.PI) - 16 * 16)) < 0.5,
+                  $"expand stroke on a closed square: a ring with rounded outer corners ({Area(closedLine):0.0})");
+            var many2 = new PathSource(Enumerable.Range(0, 300).SelectMany(k => Rect(k % 20 * 6, k / 20 * 6, k % 20 * 6 + 4, k / 20 * 6 + 4).Subpaths).ToImmutableArray(), 0, 0xFF000000, 1);
+            var sw2 = System.Diagnostics.Stopwatch.StartNew();
+            var exMany = PathOps.ExpandStroke(many2, Affine.Identity, 1, 0xFF000000);
+            Check(exMany != null && sw2.ElapsedMilliseconds < 5000, $"expand stroke on 300 small shapes takes {sw2.ElapsedMilliseconds} ms");
+            var sq20 = Rect(0, 0, 20, 20);
+            var tilted = PathOps.FillPolygons(sq20, Affine.Rotate(1e-5 * 180 / Math.PI));
+            var sliver = PathOps.Combine(CombineOp.Punch, new[] { PathOps.FillPolygons(sq20, Affine.Identity), tilted }, 0xFF000000)[0];
+            Check(sliver == null || sliver.Subpaths.All(sp => Area(new PathSource(ImmutableArray.Create(sp), 0, 0, 0)) >= 0.01), "punching a square out of a barely turned copy leaves no slivers");
         }
 
         Console.WriteLine("Pen tool");

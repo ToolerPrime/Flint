@@ -218,12 +218,12 @@ against Fireworks are in `FEATURE_PARITY.md`.
 
 ## Paths
 
-- Combine path and Inset/Expand work on a mask with 8 samples per pixel,
-  then fit smooth curves: straight edges on whole pixels come back exact,
-  curved edges can move by about a tenth of a pixel, details finer than 1/8
-  px are lost, and results have more points than Fireworks gives. Very large
-  shapes use fewer samples per pixel. (A shape-clipping library would make
-  these exact; adding one needs your approval.)
+- Combine path and Inset/Expand compute exactly on the outlines (Clipper2),
+  then fit smooth curves again: straight edges between corners come back
+  exact; curves (and straight parts that flow into a curve, like the sides
+  of an outset square) stay within about 0.05 px, areas within about 0.1%.
+  Inset path keeps corners sharp (cut square past 4x the inset); growing
+  rounds them.
 - Strokes are centred with round corners and ends; there are no inside or
   outside strokes or other joins yet. Scaling a path scales its stroke.
 - Fill is even-odd: a path that crosses itself leaves a hole where it

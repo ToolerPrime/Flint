@@ -81,7 +81,7 @@ input (see CHANGELOG 0.6.1); that is not a repeatable suite.
 | Polygon, freeform | Missing | |
 | Stroke / fill properties, gradients, patterns | Missing | |
 | Align, distribute, group | Partial | Multi-object canvas alignment and nested per-cel grouping; distribution and isolated group blending remain missing |
-| Boolean path operations | Working | Combine path: Union, Intersect, Punch, Crop. Alter path: Simplify, Expand stroke, Inset path. Computed on an 8x-detailed mask and refitted to smooth curves (straight edges on whole pixels stay exact) |
+| Boolean path operations | Working | Combine path: Union, Intersect, Punch, Crop. Alter path: Simplify, Expand stroke, Inset path. Exact polygon maths (Clipper2) refitted to smooth curves; straight edges between corners stay exact |
 | Trace bitmap to vectors | Working | Colours, minimum area, smoothing, simplify, smooth or hard edges, live preview; exact at smoothing 0; shapes stay sharp when scaled or rotated |
 | Auto Shapes | Missing | |
 

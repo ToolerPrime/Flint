@@ -1,7 +1,7 @@
 # Flint architecture
 
 Native Windows app: C# on .NET 8, WinForms UI, one self-contained x64
-executable. One NuGet dependency (NAudio, for sound devices). ffmpeg is an
+executable. Two NuGet dependencies (NAudio, for sound devices; Clipper2, for path combining and offsets). ffmpeg is an
 optional external tool for video and some decoding.
 
 ## Why WinForms
@@ -241,7 +241,7 @@ shapes (fill, then stroke pieces) are built from it by `PathSources.Create`
 and drawn by `Tracer.Render`, so pixels are exact and transforms re-render
 from the source like any vector object; `With()` drops `Vector`, so a
 destructive edit leaves plain pixels. Edits always build a new object from
-the source (`PathSources.Replace`). Combine/Alter (`PathOps`) render inputs to
-an 8x mask, combine or offset it (exact distance transform), trace it back
-(`Tracer.Trace`) and refit curves (`PathFit`, translated from VectorCraft).
+the source (`PathSources.Replace`). Combine/Alter (`PathOps`) flatten the
+outlines finely, combine or offset them exactly with Clipper2, and refit
+curves (`PathFit`, translated from VectorCraft).
 See `desktop/PathSource.cs`, `desktop/PathOps.cs`, `desktop/MainForm.Pen.cs`.

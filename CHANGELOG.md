@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — exact path combining
+
+- Combine path (Union, Intersect, Punch, Crop), Inset path and Expand stroke now compute exactly with the Clipper2 library, so curved shapes keep their exact outline and come back with fewer points, and tiny details are kept. Large shapes are faster and use far less memory. Inset path now keeps corners sharp (inward corners and the corners of holes used to come out rounded).
+
 ## Unreleased — pen tool and path commands
 
 - Pen tool (P): click for corner points, drag for smooth curves, click the first point to close the shape, Enter or Esc to finish an open path, Backspace to take back a point. Tick filled for a solid shape; anti-alias for smooth edges.
